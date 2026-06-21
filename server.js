@@ -170,9 +170,7 @@ function getSessionUser(token) {
 }
 
 function makeLink(request, hash) {
-  const origin = request.headers.origin && request.headers.origin !== "null"
-    ? request.headers.origin
-    : publicUrl;
+  const origin = process.env.PUBLIC_URL || publicUrl;
   return `${origin}/index.html#${hash}`;
 }
 
