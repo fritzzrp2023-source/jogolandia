@@ -253,7 +253,7 @@
             <div class="profile-grid">
               <form class="profile-card" id="profileForm" novalidate>
                 <label class="field">
-                  <span>ID do usuario</span>
+                  <span>ID publico do usuario</span>
                   <input id="profileId" type="text" readonly />
                 </label>
                 <label class="field">
@@ -319,7 +319,7 @@
                 <form class="invite-form" id="friendInviteForm">
                   <label class="field">
                     <span>ID do amigo</span>
-                    <input id="friendIdInput" type="number" min="1" placeholder="Digite o ID do usuario" required />
+                    <input id="friendIdInput" type="text" inputmode="numeric" maxlength="10" placeholder="Digite os 10 numeros do ID" required />
                     <small class="field-message"></small>
                   </label>
                   <button class="primary-button" type="submit">Convidar amigo</button>

@@ -135,9 +135,27 @@ function verifyPassword(password, salt, storedHash) {
 function publicUser(user) {
   return {
     id: user.id,
+    publicId: user.public_id || String(user.id).padStart(10, "0"),
     nickname: user.nickname,
     cpf: user.cpf,
   };
+}
+
+function createPublicId() {
+  return String(1000000000 + crypto.randomInt(9000000000));
+}
+
+async function createUniquePublicId() {
+  for (let attempt = 0; attempt < 8; attempt += 1) {
+    const publicId = createPublicId();
+    const existing = await supabaseRequest(`users?select=id&public_id=${eq(publicId)}&limit=1`);
+
+    if (!existing.length) {
+      return publicId;
+    }
+  }
+
+  throw new Error("Nao foi possivel gerar ID publico.");
 }
 
 function createSession(userId) {
@@ -160,7 +178,7 @@ async function getSessionUser(token) {
     return null;
   }
 
-  const users = await supabaseRequest(`users?select=id,nickname,cpf&id=${eq(session.user_id)}&limit=1`);
+  const users = await supabaseRequest(`users?select=id,public_id,nickname,cpf&id=${eq(session.user_id)}&limit=1`);
   return users[0] || null;
 }
 
@@ -247,11 +265,13 @@ async function handleRegister(request, response) {
 
     const passwordData = hashPassword(password);
 
+    const publicId = await createUniquePublicId();
     const createdUsers = await supabaseRequest("users", {
       method: "POST",
       body: JSON.stringify({
         nickname,
         cpf,
+        public_id: publicId,
         password_hash: passwordData.hash,
         salt: passwordData.salt,
       }),
@@ -378,7 +398,7 @@ async function handleFriends(request, response) {
       return;
     }
 
-    const users = await supabaseRequest(`users?select=id,nickname&id=in.(${otherIds.join(",")})`);
+    const users = await supabaseRequest(`users?select=id,public_id,nickname&id=in.(${otherIds.join(",")})`);
     const onlineIds = await getOnlineUserIds(otherIds);
     const friends = friendships.map((friendship) => {
       const otherId = Number(friendship.requester_id) === Number(sessionUser.id)
@@ -392,6 +412,7 @@ async function handleFriends(request, response) {
 
       return {
         id: otherId,
+        publicId: user?.public_id || String(otherId).padStart(10, "0"),
         friendshipId: friendship.id,
         nickname: user?.nickname || `Usuario ${otherId}`,
         status: friendship.status,
@@ -417,20 +438,26 @@ async function handleFriendInvite(request, response) {
     }
 
     const body = await parseJsonBody(request);
-    const friendId = Number(body.friendId);
+    const friendPublicId = String(body.friendId || "").replace(/\D/g, "");
 
-    if (!friendId || friendId === Number(sessionUser.id)) {
-      send(response, 400, { ok: false, message: "Digite um ID de outro usuario." });
+    if (friendPublicId.length !== 10) {
+      send(response, 400, { ok: false, message: "O ID do amigo precisa ter 10 numeros." });
       return;
     }
 
-    const target = await supabaseRequest(`users?select=id,nickname&id=${eq(friendId)}&limit=1`);
+    if (friendPublicId === String(sessionUser.public_id)) {
+      send(response, 400, { ok: false, message: "Digite o ID de outro usuario." });
+      return;
+    }
+
+    const target = await supabaseRequest(`users?select=id,public_id,nickname&public_id=${eq(friendPublicId)}&limit=1`);
 
     if (!target.length) {
       send(response, 404, { ok: false, message: "Usuario nao encontrado com esse ID." });
       return;
     }
 
+    const friendId = Number(target[0].id);
     const low = Math.min(Number(sessionUser.id), friendId);
     const high = Math.max(Number(sessionUser.id), friendId);
     const existing = await supabaseRequest(

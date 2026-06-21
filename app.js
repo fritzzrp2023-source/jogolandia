@@ -184,8 +184,8 @@ function showToast(html) {
 
 function updateHeader(user) {
   document.querySelector("#userNickname").textContent = user.nickname;
-  document.querySelector("#userPublicId").textContent = `ID ${user.id}`;
-  document.querySelector("#friendsMyId").textContent = user.id;
+  document.querySelector("#userPublicId").textContent = `ID ${user.publicId}`;
+  document.querySelector("#friendsMyId").textContent = user.publicId;
 }
 
 function renderDashboard(user) {
@@ -240,7 +240,7 @@ async function loadProfile() {
   const result = await apiRequest("/api/profile", { method: "GET" });
   currentUser = result.user;
   updateHeader(result.user);
-  document.querySelector("#profileId").value = result.user.id;
+  document.querySelector("#profileId").value = result.user.publicId;
   document.querySelector("#profileNickname").value = result.user.nickname;
   document.querySelector("#profileCpf").value = formatCpf(result.user.cpf);
 }
@@ -258,7 +258,7 @@ async function loadFriends() {
       <article class="friend-item">
         <div>
           <strong>${friend.nickname}</strong>
-          <span>ID ${friend.id} • ${friend.online ? "online" : "offline"} • ${friend.statusText}</span>
+          <span>ID ${friend.publicId} • ${friend.online ? "online" : "offline"} • ${friend.statusText}</span>
         </div>
         ${friend.canAccept ? `<button type="button" data-accept-friend="${friend.friendshipId}">Aceitar</button>` : ""}
         ${friend.status === "accepted" ? `<button type="button" ${friend.online ? "" : "disabled"}>Convidar para jogar</button>` : ""}
@@ -314,7 +314,7 @@ async function loadSetupFriends() {
         <input type="checkbox" value="${friend.id}" ${friend.online ? "" : "disabled"} />
         <span>
           <strong>${friend.nickname}</strong>
-          <small>ID ${friend.id} • ${friend.online ? "online" : "offline"}</small>
+          <small>ID ${friend.publicId} • ${friend.online ? "online" : "offline"}</small>
         </span>
       </label>
     `).join("");
@@ -399,6 +399,9 @@ document.querySelector("#nickname").addEventListener("input", (event) => validat
 document.querySelector("#cpf").addEventListener("input", (event) => validateCpf(event.target));
 document.querySelector("#loginCpf").addEventListener("input", (event) => validateCpf(event.target));
 document.querySelector("#profileNickname").addEventListener("input", (event) => validateNickname(event.target));
+document.querySelector("#friendIdInput").addEventListener("input", (event) => {
+  event.target.value = onlyDigits(event.target.value).slice(0, 10);
+});
 
 ["#registerPassword", "#confirmPassword"].forEach((selector) => {
   document.querySelector(selector).addEventListener("input", () => {
@@ -515,10 +518,10 @@ forms.changePassword.addEventListener("submit", async (event) => {
 
 forms.friendInvite.addEventListener("submit", async (event) => {
   event.preventDefault();
-  const friendId = Number(document.querySelector("#friendIdInput").value);
+  const friendId = onlyDigits(document.querySelector("#friendIdInput").value);
   const message = document.querySelector("#friendsMessage");
-  if (!friendId) {
-    setMessage(message, "Digite o ID do amigo.", "error");
+  if (friendId.length !== 10) {
+    setMessage(message, "O ID do amigo precisa ter 10 numeros.", "error");
     return;
   }
   try {
