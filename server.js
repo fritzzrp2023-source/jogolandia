@@ -210,7 +210,13 @@ async function handleRegister(request, response) {
       `INSERT INTO users (nickname, cpf, password_hash, salt)
        VALUES (?, ?, ?, ?)`,
     ).run(nickname, cpf, passwordData.hash, passwordData.salt);
-    send(response, 201, { ok: true, message: "Conta criada. Agora voce pode fazer login." });
+    const user = db.prepare("SELECT id, nickname FROM users WHERE cpf = ?").get(cpf);
+    send(response, 201, {
+      ok: true,
+      message: "Conta criada. Entrando no painel...",
+      token: createSession(user.id),
+      user: publicUser(user),
+    });
   } catch (error) {
     logSafeError("register", error);
     send(response, 500, { ok: false, message: "Nao foi possivel criar a conta." });

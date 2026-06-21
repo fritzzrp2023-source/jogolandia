@@ -282,11 +282,8 @@ forms.register.addEventListener("submit", async (event) => {
     forms.register.reset();
     clearFieldStates(forms.register);
     setMessage(message, result.message, "success");
-    document.querySelector("#loginCpf").value = registeredCpf;
-    validateCpf(document.querySelector("#loginCpf"));
-    showForm("login");
-    setMessage(document.querySelector("#loginMessage"), "Conta criada. Entre com a senha cadastrada.", "success");
-    showToast("Conta criada. Use seu CPF e senha para entrar.");
+    showToast("Conta criada. Entrando no painel...");
+    loginUser(result.token, result.user);
   } catch (error) {
     setMessage(message, error.message, "error");
   }
