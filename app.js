@@ -4,6 +4,9 @@ const API_BASE = location.protocol === "file:" ? "http://127.0.0.1:8080" : "";
 const authView = document.querySelector("#authView");
 const dashboardView = document.querySelector("#dashboardView");
 const toast = document.querySelector("#toast");
+const accountPanel = document.querySelector("#accountPanel");
+const userMenu = document.querySelector("#userMenu");
+const userMenuButton = document.querySelector("#userMenuButton");
 
 const forms = {
   login: document.querySelector("#loginForm"),
@@ -224,8 +227,36 @@ document.querySelectorAll("[data-auth-tab]").forEach((button) => {
 
 document.querySelector("#logoutButton").addEventListener("click", () => {
   localStorage.removeItem(SESSION_KEY);
+  userMenu.hidden = true;
+  accountPanel.hidden = true;
   renderAuth();
   showForm("login");
+});
+
+userMenuButton.addEventListener("click", () => {
+  userMenu.hidden = !userMenu.hidden;
+  userMenuButton.setAttribute("aria-expanded", String(!userMenu.hidden));
+});
+
+document.querySelector("#openPasswordPanel").addEventListener("click", () => {
+  userMenu.hidden = true;
+  userMenuButton.setAttribute("aria-expanded", "false");
+  accountPanel.hidden = false;
+  accountPanel.scrollIntoView({ behavior: "smooth", block: "start" });
+});
+
+document.querySelector("#closePasswordPanel").addEventListener("click", () => {
+  accountPanel.hidden = true;
+  forms.changePassword.reset();
+  clearFieldStates(forms.changePassword);
+  setMessage(document.querySelector("#changePasswordMessage"), "");
+});
+
+document.addEventListener("click", (event) => {
+  if (!userMenu.hidden && !event.target.closest(".user-box")) {
+    userMenu.hidden = true;
+    userMenuButton.setAttribute("aria-expanded", "false");
+  }
 });
 
 document.querySelectorAll("[data-toggle-password]").forEach((button) => {
@@ -353,6 +384,10 @@ forms.changePassword.addEventListener("submit", async (event) => {
     forms.changePassword.reset();
     clearFieldStates(forms.changePassword);
     setMessage(message, result.message, "success");
+    window.setTimeout(() => {
+      accountPanel.hidden = true;
+      setMessage(message, "");
+    }, 1500);
   } catch (error) {
     setMessage(message, error.message, "error");
   }
