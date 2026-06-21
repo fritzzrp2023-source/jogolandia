@@ -24,15 +24,21 @@ const forms = {
   friendInvite: document.querySelector("#friendInviteForm"),
 };
 
-const hangmanWords = [
-  "amizade", "campeonato", "controle", "tabuleiro", "aventura", "equipe", "desafio", "segredo",
-  "palavra", "jogador", "vitoria", "partida", "estrategia", "conquista", "diversao", "energia",
-  "raciocinio", "rodada", "convite", "dupla", "torneio", "missao", "ranking", "resposta",
-  "fantasia", "universo", "criativo", "misterio", "coragem", "comando", "atalho", "memoria",
-];
+const hangmanWords = {
+  easy: ["amizade", "equipe", "desafio", "segredo", "palavra", "jogador", "vitoria", "rodada", "dupla", "missao", "atalho", "memoria"],
+  normal: ["campeonato", "controle", "tabuleiro", "aventura", "partida", "estrategia", "conquista", "diversao", "energia", "convite", "ranking", "resposta"],
+  hard: ["raciocinio", "colaboracao", "comunicacao", "sobrevivencia", "inteligencia", "competitividade", "entretenimento", "planejamento", "concentracao", "persistencia"],
+};
+
+const difficultyRules = {
+  easy: { label: "Facil", maxMisses: 7, botHitChance: 0.35 },
+  normal: { label: "Normal", maxMisses: 6, botHitChance: 0.5 },
+  hard: { label: "Dificil", maxMisses: 5, botHitChance: 0.65 },
+};
 
 let currentUser = null;
 let hangman = null;
+let setupFriends = [];
 
 function onlyDigits(value) {
   return String(value || "").replace(/\D/g, "");
@@ -244,6 +250,33 @@ async function loadFriends() {
         ${friend.canAccept ? `<button type="button" data-accept-friend="${friend.friendshipId}">Aceitar</button>` : ""}
         ${friend.status === "accepted" ? `<button type="button" ${friend.online ? "" : "disabled"}>Convidar para jogar</button>` : ""}
       </article>
+    `).join("");
+  } catch (error) {
+    list.innerHTML = `<p class="form-message error">${error.message}</p>`;
+  }
+}
+
+async function loadSetupFriends() {
+  const list = document.querySelector("#setupFriendsList");
+  list.innerHTML = '<p class="muted-label">Carregando amigos...</p>';
+
+  try {
+    const result = await apiRequest("/api/friends", { method: "GET" });
+    setupFriends = result.friends.filter((friend) => friend.status === "accepted");
+
+    if (!setupFriends.length) {
+      list.innerHTML = '<p class="muted-label">Nenhum amigo aceito ainda. Voce pode iniciar solo, 1x1 local ou 2x2 local.</p>';
+      return;
+    }
+
+    list.innerHTML = setupFriends.map((friend) => `
+      <label class="friend-check">
+        <input type="checkbox" value="${friend.id}" ${friend.online ? "" : "disabled"} />
+        <span>
+          <strong>${friend.nickname}</strong>
+          <small>ID ${friend.id} • ${friend.online ? "online" : "offline"}</small>
+        </span>
+      </label>
     `).join("");
   } catch (error) {
     list.innerHTML = `<p class="form-message error">${error.message}</p>`;
@@ -465,32 +498,51 @@ document.querySelector("#friendList").addEventListener("click", async (event) =>
   await loadFriends();
 });
 
-function createPlayers(mode) {
+function getSelectedHangmanConfig() {
+  const difficulty = document.querySelector('input[name="difficulty"]:checked')?.value || "normal";
+  const mode = document.querySelector('input[name="gameMode"]:checked')?.value || "solo";
+  const selectedFriendIds = [...document.querySelectorAll("#setupFriendsList input:checked")].map((input) => Number(input.value));
+  const invitedFriends = setupFriends.filter((friend) => selectedFriendIds.includes(Number(friend.id)));
+
+  return { difficulty, mode, invitedFriends };
+}
+
+function createPlayers(mode, invitedFriends = []) {
   if (mode === "solo") return [
     { name: currentUser.nickname, misses: 0, hits: 0, streak: 0 },
     { name: "Bot", misses: 0, hits: 0, streak: 0, bot: true },
   ];
   if (mode === "teams") return [
-    { name: "Dupla 1", misses: 0, hits: 0, streak: 0 },
-    { name: "Dupla 2", misses: 0, hits: 0, streak: 0 },
+    { name: invitedFriends[0] ? `${currentUser.nickname} + ${invitedFriends[0].nickname}` : "Dupla 1", misses: 0, hits: 0, streak: 0 },
+    { name: invitedFriends[1] && invitedFriends[2] ? `${invitedFriends[1].nickname} + ${invitedFriends[2].nickname}` : "Dupla 2", misses: 0, hits: 0, streak: 0 },
   ];
   return [
     { name: currentUser.nickname, misses: 0, hits: 0, streak: 0 },
-    { name: "Jogador 2", misses: 0, hits: 0, streak: 0 },
+    { name: invitedFriends[0]?.nickname || "Jogador 2", misses: 0, hits: 0, streak: 0 },
   ];
 }
 
-function startHangman(mode = hangman?.mode || "solo") {
-  const word = hangmanWords[Math.floor(Math.random() * hangmanWords.length)];
+function startHangman(config = getSelectedHangmanConfig()) {
+  const rules = difficultyRules[config.difficulty] || difficultyRules.normal;
+  const dictionary = hangmanWords[config.difficulty] || hangmanWords.normal;
+  const word = dictionary[Math.floor(Math.random() * dictionary.length)];
   hangman = {
-    mode,
+    mode: config.mode,
+    difficulty: config.difficulty,
+    invitedFriends: config.invitedFriends || [],
+    maxMisses: rules.maxMisses,
+    botHitChance: rules.botHitChance,
     word,
     normalized: normalizeText(word),
     guessed: new Set(),
     turn: 0,
     locked: false,
-    players: createPlayers(mode),
+    players: createPlayers(config.mode, config.invitedFriends || []),
   };
+  document.querySelector("#hangmanSetup").hidden = true;
+  document.querySelector("#hangmanPanel").hidden = false;
+  document.querySelector("#wordGuess").value = "";
+  setMessage(document.querySelector("#hangmanMessage"), "Partida iniciada. Boa sorte!", "success");
   renderHangman();
 }
 
@@ -503,13 +555,20 @@ function renderHangman() {
   document.querySelector("#teamScore").innerHTML = hangman.players.map((player, index) => `
     <div class="${index === hangman.turn && !hangman.locked ? "active-score" : ""}">
       <strong>${player.name}</strong>
-      <span>Acertos ${player.hits} • Erros ${player.misses}/6 • Sequencia ${player.streak}</span>
+      <span>Acertos ${player.hits} • Erros ${player.misses}/${hangman.maxMisses} • Sequencia ${player.streak}</span>
     </div>
   `).join("");
   document.querySelectorAll(".body-part").forEach((part, index) => {
-    part.classList.toggle("visible", active.misses > index);
+    const visibleParts = Math.ceil((active.misses / hangman.maxMisses) * 6);
+    part.classList.toggle("visible", visibleParts > index);
   });
   document.querySelector("#guessWordButton").disabled = hangman.locked || active.streak < 3;
+  const modeLabel = hangman.mode === "solo" ? "Solo vs bot" : hangman.mode === "duel" ? "1x1" : "2x2";
+  document.querySelector("#matchSummary").innerHTML = `
+    <span>${modeLabel}</span>
+    <span>${difficultyRules[hangman.difficulty].label}</span>
+    <span>${hangman.maxMisses} erros</span>
+  `;
   renderKeyboard();
 }
 
@@ -543,11 +602,12 @@ function guessLetter(letter) {
   if (occurrences) {
     active.hits += occurrences;
     active.streak += 1;
-    setMessage(document.querySelector("#hangmanMessage"), `${active.name} acertou ${occurrences} letra(s).`, "success");
+    const canGuessWord = active.streak >= 3 ? " Ja pode chutar a palavra ou continuar nas letras." : "";
+    setMessage(document.querySelector("#hangmanMessage"), `${active.name} acertou ${occurrences} letra(s) e continua jogando.${canGuessWord}`, "success");
   } else {
     active.misses += 1;
     active.streak = 0;
-    setMessage(document.querySelector("#hangmanMessage"), `${active.name} errou a letra ${letter}.`, "error");
+    setMessage(document.querySelector("#hangmanMessage"), `${active.name} errou a letra ${letter}. A vez passou.`, "error");
   }
   const solved = [...hangman.normalized].every((item) => hangman.guessed.has(item));
   if (solved) {
@@ -555,8 +615,15 @@ function guessLetter(letter) {
     finishHangman(`${winner.name} venceu com mais letras acertadas!`);
     return;
   }
-  if (active.misses >= 6) {
+  if (active.misses >= hangman.maxMisses) {
     finishHangman(`${active.name} foi enforcado. ${hangman.players[(hangman.turn + 1) % hangman.players.length].name} venceu!`, "error");
+    return;
+  }
+  if (occurrences) {
+    renderHangman();
+    if (active.bot) {
+      window.setTimeout(playBotTurn, 700);
+    }
     return;
   }
   nextTurn();
@@ -564,29 +631,40 @@ function guessLetter(letter) {
 
 function playBotTurn() {
   const available = "ABCDEFGHIJKLMNOPQRSTUVWXYZ".split("").filter((letter) => !hangman.guessed.has(letter));
+  if (!available.length) return;
   const smartLetters = [...new Set(hangman.normalized.split(""))].filter((letter) => !hangman.guessed.has(letter));
-  const shouldHit = Math.random() > 0.45 && smartLetters.length;
+  const shouldHit = Math.random() < hangman.botHitChance && smartLetters.length;
   guessLetter(shouldHit ? smartLetters[0] : available[Math.floor(Math.random() * available.length)]);
 }
 
 document.querySelector("#openHangmanGame").addEventListener("click", () => {
-  document.querySelector("#hangmanPanel").hidden = false;
-  startHangman("solo");
+  document.querySelector("#hangmanSetup").hidden = false;
+  document.querySelector("#hangmanPanel").hidden = true;
+  loadSetupFriends();
+});
+
+document.querySelector("#closeHangmanSetup").addEventListener("click", () => {
+  document.querySelector("#hangmanSetup").hidden = true;
 });
 
 document.querySelector("#closeHangmanGame").addEventListener("click", () => {
   document.querySelector("#hangmanPanel").hidden = true;
+  document.querySelector("#hangmanSetup").hidden = true;
 });
 
-document.querySelector("#newHangmanRound").addEventListener("click", () => startHangman());
-
-document.querySelectorAll("[data-game-mode]").forEach((button) => {
-  button.addEventListener("click", () => {
-    document.querySelectorAll("[data-game-mode]").forEach((item) => item.classList.remove("active"));
-    button.classList.add("active");
-    startHangman(button.dataset.gameMode);
-  });
+document.querySelector("#changeHangmanConfig").addEventListener("click", () => {
+  document.querySelector("#hangmanPanel").hidden = true;
+  document.querySelector("#hangmanSetup").hidden = false;
+  loadSetupFriends();
 });
+
+document.querySelector("#newHangmanRound").addEventListener("click", () => startHangman({
+  difficulty: hangman?.difficulty || getSelectedHangmanConfig().difficulty,
+  mode: hangman?.mode || getSelectedHangmanConfig().mode,
+  invitedFriends: hangman?.invitedFriends || [],
+}));
+
+document.querySelector("#startConfiguredHangman").addEventListener("click", () => startHangman(getSelectedHangmanConfig()));
 
 document.querySelector("#letterKeyboard").addEventListener("click", (event) => {
   const button = event.target.closest("[data-letter]");
@@ -596,6 +674,10 @@ document.querySelector("#letterKeyboard").addEventListener("click", (event) => {
 document.querySelector("#guessWordButton").addEventListener("click", () => {
   const guess = normalizeText(document.querySelector("#wordGuess").value);
   const active = hangman.players[hangman.turn];
+  if (!guess) {
+    setMessage(document.querySelector("#hangmanMessage"), "Digite uma palavra antes de chutar.", "error");
+    return;
+  }
   if (active.streak < 3) {
     setMessage(document.querySelector("#hangmanMessage"), "A equipe precisa acertar 3 letras seguidas para chutar.", "error");
     return;

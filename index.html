@@ -118,17 +118,87 @@
             </article>
           </div>
 
+          <section class="hangman-setup" id="hangmanSetup" hidden>
+            <div class="game-toolbar">
+              <div>
+                <p class="eyebrow">Configurar partida</p>
+                <h2>Prepare o jogo da forca</h2>
+              </div>
+              <button class="link-button" id="closeHangmanSetup" type="button">Voltar aos jogos</button>
+            </div>
+
+            <div class="setup-grid">
+              <section class="profile-card">
+                <h3>Dificuldade</h3>
+                <div class="option-grid" role="group" aria-label="Dificuldade">
+                  <label class="option-card">
+                    <input type="radio" name="difficulty" value="easy" />
+                    <span>Facil</span>
+                    <small>Palavras menores e 7 erros.</small>
+                  </label>
+                  <label class="option-card">
+                    <input type="radio" name="difficulty" value="normal" checked />
+                    <span>Normal</span>
+                    <small>Palavras médias e 6 erros.</small>
+                  </label>
+                  <label class="option-card">
+                    <input type="radio" name="difficulty" value="hard" />
+                    <span>Dificil</span>
+                    <small>Palavras longas e 5 erros.</small>
+                  </label>
+                </div>
+              </section>
+
+              <section class="profile-card">
+                <h3>Tipo de jogo</h3>
+                <div class="option-grid" role="group" aria-label="Tipo de jogo">
+                  <label class="option-card">
+                    <input type="radio" name="gameMode" value="solo" checked />
+                    <span>Solo vs bot</span>
+                    <small>Voce joga contra o sistema.</small>
+                  </label>
+                  <label class="option-card">
+                    <input type="radio" name="gameMode" value="duel" />
+                    <span>1x1</span>
+                    <small>Dois jogadores alternando no mesmo jogo.</small>
+                  </label>
+                  <label class="option-card">
+                    <input type="radio" name="gameMode" value="teams" />
+                    <span>2x2</span>
+                    <small>Duas duplas jogando por equipe.</small>
+                  </label>
+                </div>
+              </section>
+
+              <section class="profile-card">
+                <h3>Amigos convidados</h3>
+                <p class="muted-label">Escolha amigos da sua lista para preparar a partida.</p>
+                <div class="setup-friends" id="setupFriendsList"></div>
+              </section>
+
+              <section class="profile-card rules-card">
+                <h3>Regras do jogo</h3>
+                <ul>
+                  <li>Quem acerta uma letra continua jogando.</li>
+                  <li>Quem erra uma letra passa a vez.</li>
+                  <li>Ao acertar 3 letras seguidas, o jogador ou equipe pode chutar a palavra.</li>
+                  <li>Chutar a palavra é opcional. Se errar, perde automaticamente.</li>
+                  <li>Quem completa a palavra vence. Quem for enforcado primeiro perde.</li>
+                  <li>No 2x2, a dupla joga como uma equipe e compartilha acertos, erros e sequência.</li>
+                </ul>
+              </section>
+            </div>
+
+            <button class="primary-button start-game-button" id="startConfiguredHangman" type="button">Iniciar jogo</button>
+          </section>
+
           <section class="hangman-panel" id="hangmanPanel" hidden>
             <div class="game-toolbar">
               <div>
                 <p class="eyebrow">Forca</p>
                 <h2>Monte a palavra antes de ser enforcado</h2>
               </div>
-              <div class="mode-controls" role="group" aria-label="Modo de jogo">
-                <button class="tab-button active" type="button" data-game-mode="solo">Solo vs bot</button>
-                <button class="tab-button" type="button" data-game-mode="duel">1x1</button>
-                <button class="tab-button" type="button" data-game-mode="teams">2x2</button>
-              </div>
+              <div class="match-summary" id="matchSummary"></div>
             </div>
 
             <div class="hangman-board">
@@ -161,6 +231,7 @@
 
             <div class="game-footer">
               <button class="link-button" id="newHangmanRound" type="button">Nova palavra</button>
+              <button class="link-button" id="changeHangmanConfig" type="button">Configurar novamente</button>
               <button class="link-button" id="closeHangmanGame" type="button">Voltar aos jogos</button>
             </div>
           </section>
@@ -265,6 +336,6 @@
 
     <div class="toast" id="toast" hidden></div>
 
-    <script src="app.js?v=20260621-5"></script>
+    <script src="app.js?v=20260621-6"></script>
   </body>
 </html>

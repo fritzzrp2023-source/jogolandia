@@ -352,7 +352,8 @@ p {
 }
 
 .page-panel,
-.hangman-panel {
+.hangman-panel,
+.hangman-setup {
   padding: 22px;
   border: 1px solid var(--line);
   border-radius: 8px;
@@ -375,7 +376,8 @@ p {
 }
 
 .profile-grid,
-.friends-layout {
+.friends-layout,
+.setup-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 20px;
@@ -430,6 +432,80 @@ p {
 .friend-list {
   display: grid;
   gap: 10px;
+}
+
+.setup-friends {
+  display: grid;
+  gap: 10px;
+}
+
+.friend-check {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: 10px;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.friend-check input {
+  width: 18px;
+  height: 18px;
+}
+
+.friend-check small {
+  display: block;
+  margin-top: 4px;
+  color: var(--muted);
+}
+
+.option-grid {
+  display: grid;
+  gap: 10px;
+}
+
+.option-card {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 8px 10px;
+  align-items: start;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.option-card:has(input:checked) {
+  border-color: rgba(255, 207, 90, 0.8);
+  background: rgba(255, 207, 90, 0.13);
+}
+
+.option-card input {
+  margin-top: 3px;
+}
+
+.option-card span {
+  font-weight: 850;
+}
+
+.option-card small {
+  grid-column: 2;
+  color: var(--muted);
+}
+
+.rules-card ul {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+  padding-left: 20px;
+  color: #dbe6f4;
+}
+
+.start-game-button {
+  width: 100%;
+  margin-top: 20px;
 }
 
 .friend-item {
@@ -503,10 +579,23 @@ p {
   gap: 20px;
 }
 
-.mode-controls {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(110px, 1fr));
+.match-summary {
+  display: flex;
+  flex-wrap: wrap;
   gap: 8px;
+  justify-content: flex-end;
+}
+
+.match-summary span {
+  min-height: 38px;
+  display: inline-grid;
+  place-items: center;
+  padding: 0 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.07);
+  color: #fff3cf;
+  font-weight: 800;
 }
 
 .hangman-board {
@@ -731,11 +820,11 @@ p {
 
   .profile-grid,
   .friends-layout,
+  .setup-grid,
   .hangman-board {
     grid-template-columns: 1fr;
   }
 
-  .mode-controls,
   .keyboard {
     grid-template-columns: repeat(3, minmax(0, 1fr));
   }
