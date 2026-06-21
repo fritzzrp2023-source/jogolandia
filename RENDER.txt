@@ -1,0 +1,40 @@
+Deploy gratuito da Jogolandia no Render
+
+1. Coloque esta pasta em um repositorio no GitHub.
+2. Entre em https://dashboard.render.com
+3. Clique em New > Web Service.
+4. Conecte o repositorio da Jogolandia.
+5. Use estas configuracoes:
+
+Name: jogolandia
+Language: Node
+Build Command: npm install
+Start Command: npm start
+Health Check Path: /api/health
+
+6. Em Environment Variables, coloque:
+
+HOST=0.0.0.0
+SMTP_HOST=smtp.gmail.com
+SMTP_PORT=587
+SMTP_SECURE=false
+SMTP_USER=seu-gmail@gmail.com
+SMTP_PASS=sua-senha-de-app-do-google
+SMTP_FROM=seu-gmail@gmail.com
+
+7. Depois que o deploy terminar, copie a URL do Render, algo como:
+
+https://jogolandia.onrender.com
+
+8. Volte em Environment Variables e adicione:
+
+PUBLIC_URL=https://jogolandia.onrender.com
+
+9. Clique em Manual Deploy > Deploy latest commit.
+
+Importante sobre banco de dados:
+
+Nesta versao gratuita, o projeto usa SQLite local. Isso funciona para teste no Render,
+mas pode perder usuarios quando o servico reiniciar ou fizer novo deploy.
+
+Para producao de verdade, depois vamos trocar para PostgreSQL ou outro banco externo.

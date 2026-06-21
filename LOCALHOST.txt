@@ -1,0 +1,25 @@
+Como testar a Jogolandia antes da VPS
+
+Forma mais facil:
+
+1. Abra a pasta do projeto.
+2. De dois cliques em INICIAR-JOGOLANDIA.bat
+3. O navegador vai abrir em:
+
+http://localhost:8080
+
+4. Deixe a janela preta aberta enquanto estiver testando.
+5. Para desligar o site local, feche a janela preta.
+
+Teste de servidor:
+
+http://localhost:8080/api/health
+
+Se aparecer ok true, o servidor local esta ligado.
+
+Quando formos mandar para VPS, vamos mudar:
+
+HOST=0.0.0.0
+PUBLIC_URL=https://seu-dominio.com
+
+No computador local, deixe como esta.

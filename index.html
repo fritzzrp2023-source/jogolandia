@@ -1,0 +1,153 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Jogolandia</title>
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <main class="app-shell">
+      <section class="auth-hero" id="authView">
+        <div class="brand-panel">
+          <p class="eyebrow">Jogos em equipe</p>
+          <h1>Jogolandia</h1>
+          <p class="brand-copy">
+            Entre com sua turma, crie uma sala e jogue desafios simples em grupo.
+          </p>
+          <div class="mini-stats" aria-label="Resumo da plataforma">
+            <span><strong>4</strong> jogos planejados</span>
+            <span><strong>100%</strong> navegador</span>
+            <span><strong>grupo</strong> em foco</span>
+          </div>
+        </div>
+
+        <section class="auth-card" aria-label="Acesso da conta">
+          <div class="tabs" role="tablist" aria-label="Alternar entre login e cadastro">
+            <button class="tab-button active" type="button" data-auth-tab="login">Login</button>
+            <button class="tab-button" type="button" data-auth-tab="register">Cadastro</button>
+          </div>
+
+          <form class="auth-form active" id="loginForm" novalidate>
+            <label class="field">
+              <span>Email</span>
+              <input id="loginEmail" type="email" autocomplete="email" placeholder="voce@email.com" required />
+              <small class="field-message"></small>
+            </label>
+
+            <label class="field">
+              <span>Senha</span>
+              <input id="loginPassword" type="password" autocomplete="current-password" placeholder="Digite sua senha" required />
+              <small class="field-message"></small>
+            </label>
+
+            <button class="primary-button" type="submit">Entrar</button>
+            <button class="link-button" id="showReset" type="button">Esqueci minha senha</button>
+            <p class="form-message" id="loginMessage" role="status"></p>
+          </form>
+
+          <form class="auth-form" id="registerForm" novalidate>
+            <label class="field">
+              <span>Nickname</span>
+              <input id="nickname" type="text" autocomplete="nickname" placeholder="Seu nome no jogo" minlength="3" maxlength="18" required />
+              <small class="field-message"></small>
+            </label>
+
+            <label class="field">
+              <span>Email</span>
+              <input id="registerEmail" type="email" autocomplete="email" placeholder="voce@email.com" required />
+              <small class="field-message"></small>
+            </label>
+
+            <label class="field">
+              <span>Senha</span>
+              <input id="registerPassword" type="password" autocomplete="new-password" placeholder="Crie uma senha" minlength="6" required />
+              <small class="field-message"></small>
+            </label>
+
+            <label class="field">
+              <span>Confirmar senha</span>
+              <input id="confirmPassword" type="password" autocomplete="new-password" placeholder="Repita a senha" minlength="6" required />
+              <small class="field-message"></small>
+            </label>
+
+            <button class="primary-button" type="submit">Criar conta</button>
+            <p class="form-message" id="registerMessage" role="status"></p>
+          </form>
+
+          <form class="auth-form" id="resetForm" novalidate>
+            <h2>Redefinir senha</h2>
+            <label class="field">
+              <span>Email cadastrado</span>
+              <input id="resetEmail" type="email" autocomplete="email" placeholder="voce@email.com" required />
+              <small class="field-message"></small>
+            </label>
+            <button class="primary-button" type="submit">Enviar link</button>
+            <button class="link-button" id="backToLogin" type="button">Voltar ao login</button>
+            <p class="form-message" id="resetMessage" role="status"></p>
+          </form>
+
+          <form class="auth-form" id="newPasswordForm" novalidate>
+            <h2>Nova senha</h2>
+            <label class="field">
+              <span>Nova senha</span>
+              <input id="newPassword" type="password" autocomplete="new-password" placeholder="Nova senha" minlength="6" required />
+              <small class="field-message"></small>
+            </label>
+            <label class="field">
+              <span>Confirmar nova senha</span>
+              <input id="newPasswordConfirm" type="password" autocomplete="new-password" placeholder="Repita a nova senha" minlength="6" required />
+              <small class="field-message"></small>
+            </label>
+            <button class="primary-button" type="submit">Salvar senha</button>
+            <p class="form-message" id="newPasswordMessage" role="status"></p>
+          </form>
+        </section>
+      </section>
+
+      <section class="dashboard" id="dashboardView" hidden>
+        <header class="dashboard-header">
+          <div>
+            <p class="eyebrow">Painel</p>
+            <h1>Escolha o jogo</h1>
+          </div>
+          <div class="user-box">
+            <span id="userNickname"></span>
+            <button class="ghost-button" id="logoutButton" type="button">Sair</button>
+          </div>
+        </header>
+
+        <div class="games-grid">
+          <article class="game-card available">
+            <span class="game-icon">#</span>
+            <h2>Quiz Relampago</h2>
+            <p>Times respondem rapido e somam pontos rodada por rodada.</p>
+            <button type="button">Em breve</button>
+          </article>
+          <article class="game-card">
+            <span class="game-icon">?</span>
+            <h2>Quem Sou Eu?</h2>
+            <p>Um jogador recebe uma palavra e o grupo da dicas sem falar o termo.</p>
+            <button type="button">Em breve</button>
+          </article>
+          <article class="game-card">
+            <span class="game-icon">+</span>
+            <h2>Desafio de Duplas</h2>
+            <p>Mini provas cooperativas para jogar com sala cheia.</p>
+            <button type="button">Em breve</button>
+          </article>
+          <article class="game-card">
+            <span class="game-icon">!</span>
+            <h2>Votacao Secreta</h2>
+            <p>Perguntas leves, respostas anonimas e revelacao no final.</p>
+            <button type="button">Em breve</button>
+          </article>
+        </div>
+      </section>
+    </main>
+
+    <div class="toast" id="toast" hidden></div>
+
+    <script src="app.js"></script>
+  </body>
+</html>

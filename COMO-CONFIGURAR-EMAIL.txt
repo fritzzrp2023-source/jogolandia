@@ -1,0 +1,27 @@
+Para enviar email de verdade na Jogolandia:
+
+1. Copie o arquivo .env.example e renomeie a copia para .env
+2. Preencha os dados do seu email SMTP.
+
+Exemplo para Gmail:
+
+SMTP_HOST=smtp.gmail.com
+SMTP_PORT=587
+SMTP_SECURE=false
+SMTP_USER=seu-email@gmail.com
+SMTP_PASS=sua-senha-de-app
+SMTP_FROM=seu-email@gmail.com
+
+Importante:
+- No Gmail, a senha normal da conta geralmente nao funciona.
+- Use uma "senha de app" do Google.
+- Depois de criar o arquivo .env, abra o site pelo servidor:
+
+node server.js
+
+Depois acesse:
+
+http://127.0.0.1:8080
+
+Se abrir direto pelo arquivo index.html, o site ainda tenta chamar o servidor local,
+mas o servidor precisa estar rodando para o email sair.
