@@ -35,7 +35,7 @@ function send(response, status, data) {
   response.writeHead(status, {
     "Access-Control-Allow-Origin": "*",
     "Access-Control-Allow-Headers": "Content-Type",
-    "Access-Control-Allow-Methods": "GET,POST,OPTIONS",
+    "Access-Control-Allow-Methods": "GET,POST,PATCH,OPTIONS",
     "Content-Type": "application/json; charset=utf-8",
   });
   response.end(JSON.stringify(data));
@@ -136,6 +136,7 @@ function publicUser(user) {
   return {
     id: user.id,
     nickname: user.nickname,
+    cpf: user.cpf,
   };
 }
 
@@ -159,8 +160,20 @@ async function getSessionUser(token) {
     return null;
   }
 
-  const users = await supabaseRequest(`users?select=id,nickname&id=${eq(session.user_id)}&limit=1`);
+  const users = await supabaseRequest(`users?select=id,nickname,cpf&id=${eq(session.user_id)}&limit=1`);
   return users[0] || null;
+}
+
+async function requireSessionUser(request, response) {
+  const token = request.headers.authorization?.replace(/^Bearer\s+/i, "");
+  const sessionUser = await getSessionUser(token);
+
+  if (!sessionUser) {
+    send(response, 401, { ok: false, message: "Sessao expirada. Entre novamente." });
+    return null;
+  }
+
+  return sessionUser;
 }
 
 async function countUsers() {
@@ -282,15 +295,200 @@ async function handleLogin(request, response) {
 }
 
 async function handleSession(request, response) {
-  const token = request.headers.authorization?.replace(/^Bearer\s+/i, "");
-  const user = await getSessionUser(token);
+  const user = await requireSessionUser(request, response);
 
   if (!user) {
-    send(response, 401, { ok: false, message: "Sessao expirada." });
     return;
   }
 
   send(response, 200, { ok: true, user: publicUser(user) });
+}
+
+async function handleProfile(request, response) {
+  try {
+    const sessionUser = await requireSessionUser(request, response);
+
+    if (!sessionUser) {
+      return;
+    }
+
+    if (request.method === "GET") {
+      send(response, 200, { ok: true, user: publicUser(sessionUser) });
+      return;
+    }
+
+    const body = await parseJsonBody(request);
+    const nickname = normalizeNickname(body.nickname);
+
+    if (nickname.length < 3 || nickname.length > 18) {
+      send(response, 400, { ok: false, message: "Nickname precisa ter entre 3 e 18 caracteres." });
+      return;
+    }
+
+    const existing = await supabaseRequest(
+      `users?select=id&nickname=ilike.${encodeURIComponent(nickname)}&id=neq.${sessionUser.id}&limit=1`,
+    );
+
+    if (existing.length) {
+      send(response, 409, { ok: false, message: "Este nickname ja esta em uso." });
+      return;
+    }
+
+    const updated = await supabaseRequest(`users?id=${eq(sessionUser.id)}`, {
+      method: "PATCH",
+      body: JSON.stringify({ nickname }),
+    });
+
+    send(response, 200, { ok: true, user: publicUser(updated[0]) });
+  } catch (error) {
+    logSafeError("profile", error);
+    send(response, 500, { ok: false, message: "Nao foi possivel salvar os dados da conta." });
+  }
+}
+
+async function getOnlineUserIds(userIds) {
+  if (!userIds.length) {
+    return new Set();
+  }
+
+  const sessions = await supabaseRequest(
+    `sessions?select=user_id&user_id=in.(${userIds.join(",")})&expires_at=gt.${Date.now()}`,
+  );
+
+  return new Set(sessions.map((session) => Number(session.user_id)));
+}
+
+async function handleFriends(request, response) {
+  try {
+    const sessionUser = await requireSessionUser(request, response);
+
+    if (!sessionUser) {
+      return;
+    }
+
+    const friendships = await supabaseRequest(
+      `friendships?select=id,requester_id,addressee_id,status&or=(requester_id.eq.${sessionUser.id},addressee_id.eq.${sessionUser.id})`,
+    );
+    const otherIds = friendships.map((friendship) => (
+      Number(friendship.requester_id) === Number(sessionUser.id) ? friendship.addressee_id : friendship.requester_id
+    ));
+
+    if (!otherIds.length) {
+      send(response, 200, { ok: true, friends: [] });
+      return;
+    }
+
+    const users = await supabaseRequest(`users?select=id,nickname&id=in.(${otherIds.join(",")})`);
+    const onlineIds = await getOnlineUserIds(otherIds);
+    const friends = friendships.map((friendship) => {
+      const otherId = Number(friendship.requester_id) === Number(sessionUser.id)
+        ? Number(friendship.addressee_id)
+        : Number(friendship.requester_id);
+      const user = users.find((item) => Number(item.id) === otherId);
+      const received = Number(friendship.addressee_id) === Number(sessionUser.id);
+      const statusText = friendship.status === "accepted"
+        ? "amigo"
+        : received ? "convite recebido" : "convite enviado";
+
+      return {
+        id: otherId,
+        friendshipId: friendship.id,
+        nickname: user?.nickname || `Usuario ${otherId}`,
+        status: friendship.status,
+        statusText,
+        canAccept: received && friendship.status === "pending",
+        online: onlineIds.has(otherId),
+      };
+    });
+
+    send(response, 200, { ok: true, friends });
+  } catch (error) {
+    logSafeError("friends", error);
+    send(response, 500, { ok: false, message: "Nao foi possivel carregar amigos. Confira a tabela friendships no Supabase." });
+  }
+}
+
+async function handleFriendInvite(request, response) {
+  try {
+    const sessionUser = await requireSessionUser(request, response);
+
+    if (!sessionUser) {
+      return;
+    }
+
+    const body = await parseJsonBody(request);
+    const friendId = Number(body.friendId);
+
+    if (!friendId || friendId === Number(sessionUser.id)) {
+      send(response, 400, { ok: false, message: "Digite um ID de outro usuario." });
+      return;
+    }
+
+    const target = await supabaseRequest(`users?select=id,nickname&id=${eq(friendId)}&limit=1`);
+
+    if (!target.length) {
+      send(response, 404, { ok: false, message: "Usuario nao encontrado com esse ID." });
+      return;
+    }
+
+    const low = Math.min(Number(sessionUser.id), friendId);
+    const high = Math.max(Number(sessionUser.id), friendId);
+    const existing = await supabaseRequest(
+      `friendships?select=id,status&user_low=${eq(low)}&user_high=${eq(high)}&limit=1`,
+    );
+
+    if (existing.length) {
+      send(response, 409, { ok: false, message: "Ja existe convite ou amizade com esse usuario." });
+      return;
+    }
+
+    await supabaseRequest("friendships", {
+      method: "POST",
+      body: JSON.stringify({
+        requester_id: sessionUser.id,
+        addressee_id: friendId,
+        user_low: low,
+        user_high: high,
+        status: "pending",
+      }),
+    });
+
+    send(response, 201, { ok: true, message: `Convite enviado para ${target[0].nickname}.` });
+  } catch (error) {
+    logSafeError("friend-invite", error);
+    send(response, 500, { ok: false, message: "Nao foi possivel enviar o convite. Confira a tabela friendships no Supabase." });
+  }
+}
+
+async function handleFriendAccept(request, response) {
+  try {
+    const sessionUser = await requireSessionUser(request, response);
+
+    if (!sessionUser) {
+      return;
+    }
+
+    const body = await parseJsonBody(request);
+    const friendshipId = Number(body.friendshipId);
+    const friendship = await supabaseRequest(
+      `friendships?select=id,addressee_id,status&id=${eq(friendshipId)}&limit=1`,
+    );
+
+    if (!friendship.length || Number(friendship[0].addressee_id) !== Number(sessionUser.id)) {
+      send(response, 404, { ok: false, message: "Convite nao encontrado." });
+      return;
+    }
+
+    await supabaseRequest(`friendships?id=${eq(friendshipId)}`, {
+      method: "PATCH",
+      body: JSON.stringify({ status: "accepted", updated_at: new Date().toISOString() }),
+    });
+
+    send(response, 200, { ok: true, message: "Convite aceito." });
+  } catch (error) {
+    logSafeError("friend-accept", error);
+    send(response, 500, { ok: false, message: "Nao foi possivel aceitar o convite." });
+  }
 }
 
 async function handleChangePassword(request, response) {
@@ -375,6 +573,26 @@ const server = http.createServer(async (request, response) => {
 
   if (request.method === "POST" && url.pathname === "/api/change-password") {
     handleChangePassword(request, response);
+    return;
+  }
+
+  if ((request.method === "GET" || request.method === "PATCH") && url.pathname === "/api/profile") {
+    handleProfile(request, response);
+    return;
+  }
+
+  if (request.method === "GET" && url.pathname === "/api/friends") {
+    handleFriends(request, response);
+    return;
+  }
+
+  if (request.method === "POST" && url.pathname === "/api/friends/invite") {
+    handleFriendInvite(request, response);
+    return;
+  }
+
+  if (request.method === "POST" && url.pathname === "/api/friends/accept") {
+    handleFriendAccept(request, response);
     return;
   }
 

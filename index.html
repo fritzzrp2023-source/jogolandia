@@ -13,12 +13,12 @@
           <p class="eyebrow">Jogos em equipe</p>
           <h1>Jogarium</h1>
           <p class="brand-copy">
-            Entre com sua turma, crie uma sala e jogue desafios simples em grupo.
+            Entre com sua turma, convide amigos por ID e jogue desafios simples em grupo.
           </p>
           <div class="mini-stats" aria-label="Resumo da plataforma">
-            <span><strong>4</strong> jogos planejados</span>
-            <span><strong>100%</strong> navegador</span>
-            <span><strong>grupo</strong> em foco</span>
+            <span><strong>Forca</strong> jogavel</span>
+            <span><strong>1x1</strong> e 2x2</span>
+            <span><strong>amigos</strong> por ID</span>
           </div>
         </div>
 
@@ -88,88 +88,183 @@
       <section class="dashboard" id="dashboardView" hidden>
         <header class="dashboard-header">
           <div>
-            <p class="eyebrow">Painel</p>
-            <h1>Escolha o jogo</h1>
+            <p class="eyebrow" id="dashboardEyebrow">Painel</p>
+            <h1 id="dashboardTitle">Escolha o jogo</h1>
           </div>
-          <div class="user-box">
-            <button class="user-menu-button" id="userMenuButton" type="button" aria-expanded="false">
-              <span id="userNickname"></span>
-              <span aria-hidden="true">v</span>
-            </button>
-            <div class="user-menu" id="userMenu" hidden>
-              <button type="button" id="openPasswordPanel">Alterar senha</button>
-              <button type="button" id="logoutButton">Sair</button>
+          <div class="dashboard-actions">
+            <button class="nav-button" id="friendsButton" type="button">Amigos</button>
+            <div class="user-box">
+              <button class="user-menu-button" id="userMenuButton" type="button" aria-expanded="false">
+                <span id="userNickname"></span>
+                <span class="user-id-chip" id="userPublicId"></span>
+                <span aria-hidden="true">v</span>
+              </button>
+              <div class="user-menu" id="userMenu" hidden>
+                <button type="button" id="openAccountPage">Minha conta</button>
+                <button type="button" id="backToGamesFromMenu">Jogos</button>
+                <button type="button" id="logoutButton">Sair</button>
+              </div>
             </div>
           </div>
         </header>
 
-        <div class="games-grid">
-          <article class="game-card available">
-            <span class="game-icon">#</span>
-            <h2>Quiz Relampago</h2>
-            <p>Times respondem rapido e somam pontos rodada por rodada.</p>
-            <button type="button">Em breve</button>
-          </article>
-          <article class="game-card">
-            <span class="game-icon">?</span>
-            <h2>Quem Sou Eu?</h2>
-            <p>Um jogador recebe uma palavra e o grupo da dicas sem falar o termo.</p>
-            <button type="button">Em breve</button>
-          </article>
-          <article class="game-card">
-            <span class="game-icon">+</span>
-            <h2>Desafio de Duplas</h2>
-            <p>Mini provas cooperativas para jogar com sala cheia.</p>
-            <button type="button">Em breve</button>
-          </article>
-          <article class="game-card">
-            <span class="game-icon">!</span>
-            <h2>Votacao Secreta</h2>
-            <p>Perguntas leves, respostas anonimas e revelacao no final.</p>
-            <button type="button">Em breve</button>
-          </article>
-        </div>
-
-        <section class="account-panel" id="accountPanel" aria-label="Configuracoes da conta" hidden>
-          <div>
-            <p class="eyebrow">Conta</p>
-            <h2>Alterar senha</h2>
+        <section class="panel-view active" id="gamesView">
+          <div class="games-grid single-game">
+            <article class="game-card available">
+              <span class="game-icon">F</span>
+              <h2>Jogo da Forca</h2>
+              <p>Jogue sozinho contra o bot, em 1x1 ou em 2x2 com equipes alternando letras.</p>
+              <button type="button" id="openHangmanGame">Jogar agora</button>
+            </article>
           </div>
-          <form class="password-form" id="changePasswordForm" novalidate>
-            <label class="field">
-              <span>Senha atual</span>
-              <div class="password-control">
-                <input id="currentPassword" type="password" autocomplete="current-password" placeholder="Digite sua senha atual" required />
-                <button class="password-toggle" type="button" data-toggle-password="currentPassword">Mostrar</button>
+
+          <section class="hangman-panel" id="hangmanPanel" hidden>
+            <div class="game-toolbar">
+              <div>
+                <p class="eyebrow">Forca</p>
+                <h2>Monte a palavra antes de ser enforcado</h2>
               </div>
-              <small class="field-message"></small>
-            </label>
-            <label class="field">
-              <span>Nova senha</span>
-              <div class="password-control">
-                <input id="accountNewPassword" type="password" autocomplete="new-password" placeholder="Nova senha" minlength="6" required />
-                <button class="password-toggle" type="button" data-toggle-password="accountNewPassword">Mostrar</button>
+              <div class="mode-controls" role="group" aria-label="Modo de jogo">
+                <button class="tab-button active" type="button" data-game-mode="solo">Solo vs bot</button>
+                <button class="tab-button" type="button" data-game-mode="duel">1x1</button>
+                <button class="tab-button" type="button" data-game-mode="teams">2x2</button>
               </div>
-              <small class="field-message"></small>
-            </label>
-            <label class="field">
-              <span>Confirmar nova senha</span>
-              <div class="password-control">
-                <input id="accountNewPasswordConfirm" type="password" autocomplete="new-password" placeholder="Repita a nova senha" minlength="6" required />
-                <button class="password-toggle" type="button" data-toggle-password="accountNewPasswordConfirm">Mostrar</button>
+            </div>
+
+            <div class="hangman-board">
+              <section class="hangman-card">
+                <div class="hangman-drawing" id="hangmanDrawing" aria-label="Desenho da forca">
+                  <span class="gallows top"></span>
+                  <span class="gallows pole"></span>
+                  <span class="gallows base"></span>
+                  <span class="body-part head"></span>
+                  <span class="body-part torso"></span>
+                  <span class="body-part arm-left"></span>
+                  <span class="body-part arm-right"></span>
+                  <span class="body-part leg-left"></span>
+                  <span class="body-part leg-right"></span>
+                </div>
+                <div class="team-score" id="teamScore"></div>
+              </section>
+
+              <section class="word-card">
+                <p class="turn-label" id="turnLabel">Sua vez</p>
+                <div class="word-slots" id="wordSlots"></div>
+                <div class="keyboard" id="letterKeyboard"></div>
+                <div class="guess-area">
+                  <input id="wordGuess" type="text" placeholder="Arriscar a palavra" autocomplete="off" />
+                  <button class="primary-button" id="guessWordButton" type="button">Chutar palavra</button>
+                </div>
+                <p class="form-message" id="hangmanMessage" role="status"></p>
+              </section>
+            </div>
+
+            <div class="game-footer">
+              <button class="link-button" id="newHangmanRound" type="button">Nova palavra</button>
+              <button class="link-button" id="closeHangmanGame" type="button">Voltar aos jogos</button>
+            </div>
+          </section>
+        </section>
+
+        <section class="panel-view" id="accountView" hidden>
+          <div class="page-panel">
+            <div class="page-heading">
+              <div>
+                <p class="eyebrow">Minha conta</p>
+                <h2>Dados do usuario</h2>
               </div>
-              <small class="field-message"></small>
-            </label>
-            <button class="primary-button" type="submit">Salvar senha</button>
-            <button class="link-button" id="closePasswordPanel" type="button">Fechar</button>
-            <p class="form-message" id="changePasswordMessage" role="status"></p>
-          </form>
+              <button class="link-button" id="backToGamesFromAccount" type="button">Voltar aos jogos</button>
+            </div>
+
+            <div class="profile-grid">
+              <form class="profile-card" id="profileForm" novalidate>
+                <label class="field">
+                  <span>ID do usuario</span>
+                  <input id="profileId" type="text" readonly />
+                </label>
+                <label class="field">
+                  <span>Nickname</span>
+                  <input id="profileNickname" type="text" minlength="3" maxlength="18" required />
+                  <small class="field-message"></small>
+                </label>
+                <label class="field">
+                  <span>CPF</span>
+                  <input id="profileCpf" type="text" readonly />
+                </label>
+                <button class="primary-button" type="submit">Salvar dados</button>
+                <p class="form-message" id="profileMessage" role="status"></p>
+              </form>
+
+              <form class="profile-card password-form" id="changePasswordForm" novalidate>
+                <h3>Alterar senha</h3>
+                <label class="field">
+                  <span>Senha atual</span>
+                  <div class="password-control">
+                    <input id="currentPassword" type="password" autocomplete="current-password" placeholder="Digite sua senha atual" required />
+                    <button class="password-toggle" type="button" data-toggle-password="currentPassword">Mostrar</button>
+                  </div>
+                  <small class="field-message"></small>
+                </label>
+                <label class="field">
+                  <span>Nova senha</span>
+                  <div class="password-control">
+                    <input id="accountNewPassword" type="password" autocomplete="new-password" placeholder="Nova senha" minlength="6" required />
+                    <button class="password-toggle" type="button" data-toggle-password="accountNewPassword">Mostrar</button>
+                  </div>
+                  <small class="field-message"></small>
+                </label>
+                <label class="field">
+                  <span>Confirmar nova senha</span>
+                  <div class="password-control">
+                    <input id="accountNewPasswordConfirm" type="password" autocomplete="new-password" placeholder="Repita a nova senha" minlength="6" required />
+                    <button class="password-toggle" type="button" data-toggle-password="accountNewPasswordConfirm">Mostrar</button>
+                  </div>
+                  <small class="field-message"></small>
+                </label>
+                <button class="primary-button" type="submit">Salvar senha</button>
+                <p class="form-message" id="changePasswordMessage" role="status"></p>
+              </form>
+            </div>
+          </div>
+        </section>
+
+        <section class="panel-view" id="friendsView" hidden>
+          <div class="page-panel">
+            <div class="page-heading">
+              <div>
+                <p class="eyebrow">Amigos</p>
+                <h2>Convites por ID</h2>
+              </div>
+              <button class="link-button" id="backToGamesFromFriends" type="button">Voltar aos jogos</button>
+            </div>
+
+            <div class="friends-layout">
+              <section class="profile-card">
+                <p class="muted-label">Seu ID para convite</p>
+                <div class="big-id" id="friendsMyId"></div>
+                <form class="invite-form" id="friendInviteForm">
+                  <label class="field">
+                    <span>ID do amigo</span>
+                    <input id="friendIdInput" type="number" min="1" placeholder="Digite o ID do usuario" required />
+                    <small class="field-message"></small>
+                  </label>
+                  <button class="primary-button" type="submit">Convidar amigo</button>
+                  <p class="form-message" id="friendsMessage" role="status"></p>
+                </form>
+              </section>
+
+              <section class="profile-card">
+                <h3>Lista de amigos</h3>
+                <div class="friend-list" id="friendList"></div>
+              </section>
+            </div>
+          </div>
         </section>
       </section>
     </main>
 
     <div class="toast" id="toast" hidden></div>
 
-    <script src="app.js?v=20260621-4"></script>
+    <script src="app.js?v=20260621-5"></script>
   </body>
 </html>

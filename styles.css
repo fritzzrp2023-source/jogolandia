@@ -262,6 +262,22 @@ p {
   font-size: clamp(2.2rem, 5vw, 4.8rem);
 }
 
+.dashboard-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.nav-button {
+  min-height: 46px;
+  padding: 0 16px;
+  border: 1px solid rgba(255, 207, 90, 0.7);
+  border-radius: 8px;
+  background: rgba(255, 207, 90, 0.16);
+  color: #fff3cf;
+  font-weight: 850;
+}
+
 .user-box {
   position: relative;
   display: flex;
@@ -282,6 +298,14 @@ p {
   background: transparent;
   color: #fff3cf;
   font-weight: 800;
+}
+
+.user-id-chip {
+  padding: 4px 8px;
+  border-radius: 999px;
+  background: rgba(54, 209, 196, 0.16);
+  color: #79fff2;
+  font-size: 0.78rem;
 }
 
 .user-menu {
@@ -312,25 +336,63 @@ p {
   background: rgba(255, 255, 255, 0.08);
 }
 
+.panel-view {
+  display: grid;
+  gap: 20px;
+}
+
 .games-grid {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 16px;
 }
 
-.account-panel {
+.single-game {
+  grid-template-columns: minmax(280px, 520px);
+}
+
+.page-panel,
+.hangman-panel {
+  padding: 22px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: rgba(13, 22, 33, 0.88);
+}
+
+.page-heading,
+.game-toolbar,
+.game-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.page-heading h2,
+.game-toolbar h2 {
+  margin-bottom: 0;
+  font-size: clamp(1.7rem, 3vw, 2.6rem);
+}
+
+.profile-grid,
+.friends-layout {
   display: grid;
-  grid-template-columns: minmax(220px, 0.8fr) minmax(320px, 1.2fr);
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 20px;
-  align-items: start;
   margin-top: 22px;
+}
+
+.profile-card {
+  display: grid;
+  gap: 14px;
+  align-content: start;
   padding: 20px;
   border: 1px solid var(--line);
   border-radius: 8px;
-  background: rgba(13, 22, 33, 0.86);
+  background: rgba(6, 13, 22, 0.62);
 }
 
-.account-panel h2 {
+.profile-card h3 {
   margin-bottom: 0;
   font-size: 1.5rem;
 }
@@ -338,6 +400,63 @@ p {
 .password-form {
   display: grid;
   gap: 14px;
+}
+
+.muted-label {
+  margin-bottom: 0;
+  color: var(--muted);
+}
+
+.big-id {
+  display: inline-grid;
+  place-items: center;
+  width: fit-content;
+  min-width: 110px;
+  min-height: 64px;
+  padding: 0 22px;
+  border: 1px solid rgba(54, 209, 196, 0.5);
+  border-radius: 8px;
+  background: rgba(54, 209, 196, 0.12);
+  color: #79fff2;
+  font-size: 2rem;
+  font-weight: 950;
+}
+
+.invite-form {
+  display: grid;
+  gap: 14px;
+}
+
+.friend-list {
+  display: grid;
+  gap: 10px;
+}
+
+.friend-item {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: 10px;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.friend-item span {
+  display: block;
+  margin-top: 4px;
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+
+.friend-item button {
+  min-height: 38px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--ink);
+  font-weight: 800;
 }
 
 .game-card {
@@ -379,6 +498,204 @@ p {
   color: #d8e2ef;
 }
 
+.hangman-panel {
+  display: grid;
+  gap: 20px;
+}
+
+.mode-controls {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(110px, 1fr));
+  gap: 8px;
+}
+
+.hangman-board {
+  display: grid;
+  grid-template-columns: minmax(260px, 0.8fr) minmax(320px, 1.2fr);
+  gap: 18px;
+}
+
+.hangman-card,
+.word-card {
+  padding: 18px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: rgba(6, 13, 22, 0.72);
+}
+
+.hangman-drawing {
+  position: relative;
+  min-height: 280px;
+  margin-bottom: 16px;
+}
+
+.gallows,
+.body-part {
+  position: absolute;
+  display: block;
+  background: #dbe6f4;
+}
+
+.gallows.top {
+  left: 42px;
+  top: 18px;
+  width: 140px;
+  height: 8px;
+}
+
+.gallows.pole {
+  left: 42px;
+  top: 18px;
+  width: 8px;
+  height: 220px;
+}
+
+.gallows.base {
+  left: 18px;
+  top: 238px;
+  width: 180px;
+  height: 8px;
+}
+
+.body-part {
+  opacity: 0.12;
+  transition: opacity 180ms ease;
+}
+
+.body-part.visible {
+  opacity: 1;
+  background: var(--button);
+}
+
+.head {
+  left: 152px;
+  top: 48px;
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+}
+
+.torso {
+  left: 174px;
+  top: 94px;
+  width: 6px;
+  height: 76px;
+}
+
+.arm-left,
+.arm-right,
+.leg-left,
+.leg-right {
+  width: 6px;
+  height: 58px;
+  transform-origin: top center;
+}
+
+.arm-left {
+  left: 173px;
+  top: 112px;
+  transform: rotate(42deg);
+}
+
+.arm-right {
+  left: 176px;
+  top: 112px;
+  transform: rotate(-42deg);
+}
+
+.leg-left {
+  left: 173px;
+  top: 166px;
+  transform: rotate(32deg);
+}
+
+.leg-right {
+  left: 176px;
+  top: 166px;
+  transform: rotate(-32deg);
+}
+
+.team-score {
+  display: grid;
+  gap: 8px;
+}
+
+.team-score div {
+  padding: 10px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+}
+
+.team-score .active-score {
+  border-color: rgba(255, 207, 90, 0.7);
+  background: rgba(255, 207, 90, 0.12);
+}
+
+.team-score span {
+  display: block;
+  margin-top: 4px;
+  color: var(--muted);
+}
+
+.turn-label {
+  color: var(--accent);
+  font-weight: 850;
+}
+
+.word-slots {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 18px;
+}
+
+.word-slots span {
+  width: 42px;
+  min-height: 50px;
+  display: grid;
+  place-items: center;
+  border-bottom: 3px solid rgba(255, 255, 255, 0.42);
+  color: #fff;
+  font-size: 1.8rem;
+  font-weight: 900;
+}
+
+.keyboard {
+  display: grid;
+  grid-template-columns: repeat(13, minmax(0, 1fr));
+  gap: 6px;
+}
+
+.keyboard button {
+  min-height: 42px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--ink);
+  font-weight: 850;
+}
+
+.keyboard button:disabled {
+  cursor: not-allowed;
+  opacity: 0.35;
+}
+
+.guess-area {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 180px;
+  gap: 10px;
+  margin-top: 18px;
+}
+
+.guess-area input {
+  min-height: 50px;
+  padding: 0 14px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: rgba(2, 8, 14, 0.72);
+  color: var(--ink);
+}
+
 .toast {
   position: fixed;
   right: 18px;
@@ -412,8 +729,15 @@ p {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
-  .account-panel {
+  .profile-grid,
+  .friends-layout,
+  .hangman-board {
     grid-template-columns: 1fr;
+  }
+
+  .mode-controls,
+  .keyboard {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 }
 
@@ -442,6 +766,20 @@ p {
   }
 
   .games-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .dashboard-actions,
+  .page-heading,
+  .game-toolbar,
+  .game-footer {
+    align-items: stretch;
+    flex-direction: column;
+    width: 100%;
+  }
+
+  .guess-area,
+  .friend-item {
     grid-template-columns: 1fr;
   }
 }

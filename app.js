@@ -1,52 +1,38 @@
-const SESSION_KEY = "jogolandia_session_token";
+const SESSION_KEY = "jogarium_session_token";
+const OLD_SESSION_KEY = "jogolandia_session_token";
 const API_BASE = location.protocol === "file:" ? "http://127.0.0.1:8080" : "";
 
 const authView = document.querySelector("#authView");
 const dashboardView = document.querySelector("#dashboardView");
 const toast = document.querySelector("#toast");
-const accountPanel = document.querySelector("#accountPanel");
 const userMenu = document.querySelector("#userMenu");
 const userMenuButton = document.querySelector("#userMenuButton");
+const dashboardTitle = document.querySelector("#dashboardTitle");
+const dashboardEyebrow = document.querySelector("#dashboardEyebrow");
+
+const views = {
+  games: document.querySelector("#gamesView"),
+  account: document.querySelector("#accountView"),
+  friends: document.querySelector("#friendsView"),
+};
 
 const forms = {
   login: document.querySelector("#loginForm"),
   register: document.querySelector("#registerForm"),
+  profile: document.querySelector("#profileForm"),
   changePassword: document.querySelector("#changePasswordForm"),
+  friendInvite: document.querySelector("#friendInviteForm"),
 };
 
-function setFieldState(input, state, message) {
-  const field = input.closest(".field");
-  const helper = field.querySelector(".field-message");
-  field.classList.remove("valid", "invalid");
+const hangmanWords = [
+  "amizade", "campeonato", "controle", "tabuleiro", "aventura", "equipe", "desafio", "segredo",
+  "palavra", "jogador", "vitoria", "partida", "estrategia", "conquista", "diversao", "energia",
+  "raciocinio", "rodada", "convite", "dupla", "torneio", "missao", "ranking", "resposta",
+  "fantasia", "universo", "criativo", "misterio", "coragem", "comando", "atalho", "memoria",
+];
 
-  if (state) {
-    field.classList.add(state);
-  }
-
-  helper.textContent = message || "";
-}
-
-function setMessage(element, text, type = "") {
-  element.textContent = text;
-  element.className = `form-message ${type}`.trim();
-}
-
-function validateNickname(input) {
-  const value = input.value.trim();
-
-  if (!value) {
-    setFieldState(input, "", "");
-    return false;
-  }
-
-  if (value.length < 3) {
-    setFieldState(input, "invalid", "Use pelo menos 3 caracteres.");
-    return false;
-  }
-
-  setFieldState(input, "valid", "Nickname pronto.");
-  return true;
-}
+let currentUser = null;
+let hangman = null;
 
 function onlyDigits(value) {
   return String(value || "").replace(/\D/g, "");
@@ -60,24 +46,55 @@ function formatCpf(value) {
     .replace(/(\d{3})(\d{1,2})$/, "$1-$2");
 }
 
-function isCpfValid(value) {
-  const cpf = onlyDigits(value);
-  return cpf.length === 11;
+function normalizeText(value) {
+  return String(value || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toUpperCase();
+}
+
+function setFieldState(input, state, message) {
+  const field = input.closest(".field");
+  const helper = field.querySelector(".field-message");
+  field.classList.remove("valid", "invalid");
+  if (state) field.classList.add(state);
+  helper.textContent = message || "";
+}
+
+function setMessage(element, text, type = "") {
+  element.textContent = text;
+  element.className = `form-message ${type}`.trim();
+}
+
+function clearFieldStates(form) {
+  form.querySelectorAll(".field").forEach((field) => {
+    field.classList.remove("valid", "invalid");
+    const helper = field.querySelector(".field-message");
+    if (helper) helper.textContent = "";
+  });
+}
+
+function validateNickname(input) {
+  const value = input.value.trim();
+  if (!value) {
+    setFieldState(input, "", "");
+    return false;
+  }
+  if (value.length < 3) {
+    setFieldState(input, "invalid", "Use pelo menos 3 caracteres.");
+    return false;
+  }
+  setFieldState(input, "valid", "Nickname pronto.");
+  return true;
 }
 
 function validateCpf(input) {
   input.value = formatCpf(input.value);
-
   if (!input.value) {
     setFieldState(input, "", "");
     return false;
   }
-
-  if (!isCpfValid(input.value)) {
+  if (onlyDigits(input.value).length !== 11) {
     setFieldState(input, "invalid", "Digite 11 numeros.");
     return false;
   }
-
   setFieldState(input, "valid", "CPF valido.");
   return true;
 }
@@ -87,40 +104,62 @@ function validatePassword(input) {
     setFieldState(input, "", "");
     return false;
   }
-
   if (input.value.length < 6) {
     setFieldState(input, "invalid", "Use pelo menos 6 caracteres.");
     return false;
   }
-
   setFieldState(input, "valid", "Senha valida.");
   return true;
 }
 
 function validatePasswordPair(passwordInput, confirmInput) {
   const passwordOk = validatePassword(passwordInput);
-
   if (!confirmInput.value) {
     setFieldState(confirmInput, "", "");
     return false;
   }
-
   if (passwordInput.value !== confirmInput.value) {
     setFieldState(confirmInput, "invalid", "Senhas diferentes.");
     return false;
   }
-
-  if (passwordOk) {
-    setFieldState(confirmInput, "valid", "Senhas iguais.");
-  }
-
+  if (passwordOk) setFieldState(confirmInput, "valid", "Senhas iguais.");
   return passwordOk;
 }
 
-function showForm(name) {
-  Object.values(forms).forEach((form) => form.classList.remove("active"));
-  forms[name].classList.add("active");
+async function apiRequest(path, options = {}) {
+  const headers = {
+    "Content-Type": "application/json",
+    ...(options.headers || {}),
+  };
+  const token = localStorage.getItem(SESSION_KEY) || localStorage.getItem(OLD_SESSION_KEY);
+  if (token) headers.Authorization = `Bearer ${token}`;
 
+  const controller = new AbortController();
+  const timeout = window.setTimeout(() => controller.abort(), 12000);
+
+  try {
+    const response = await fetch(`${API_BASE}${path}`, {
+      ...options,
+      headers,
+      body: options.body ? JSON.stringify(options.body) : undefined,
+      signal: controller.signal,
+    });
+    const result = await response.json().catch(() => ({}));
+    if (!response.ok || !result.ok) throw new Error(result.message || "Nao foi possivel concluir a acao.");
+    return result;
+  } catch (error) {
+    if (error.name === "AbortError") {
+      throw new Error("O servidor demorou para responder. Recarregue a pagina e tente novamente.");
+    }
+    throw error;
+  } finally {
+    window.clearTimeout(timeout);
+  }
+}
+
+function showForm(name) {
+  [forms.login, forms.register].forEach((form) => form.classList.remove("active"));
+  forms[name].classList.add("active");
   document.querySelectorAll("[data-auth-tab]").forEach((button) => {
     button.classList.toggle("active", button.dataset.authTab === name);
   });
@@ -132,90 +171,100 @@ function showToast(html) {
   window.clearTimeout(showToast.timer);
   showToast.timer = window.setTimeout(() => {
     toast.hidden = true;
-  }, 12000);
+  }, 7000);
 }
 
-function clearFieldStates(form) {
-  form.querySelectorAll(".field").forEach((field) => {
-    field.classList.remove("valid", "invalid");
-    field.querySelector(".field-message").textContent = "";
-  });
-}
-
-async function apiRequest(path, options = {}) {
-  const headers = {
-    "Content-Type": "application/json",
-    ...(options.headers || {}),
-  };
-  const token = localStorage.getItem(SESSION_KEY);
-
-  if (token) {
-    headers.Authorization = `Bearer ${token}`;
-  }
-
-  let response;
-  const controller = new AbortController();
-  const timeout = window.setTimeout(() => controller.abort(), 12000);
-
-  try {
-    response = await fetch(`${API_BASE}${path}`, {
-      ...options,
-      headers,
-      body: options.body ? JSON.stringify(options.body) : undefined,
-      signal: controller.signal,
-    });
-  } catch (error) {
-    throw new Error("O servidor demorou para responder. Recarregue a pagina e tente novamente.");
-  } finally {
-    window.clearTimeout(timeout);
-  }
-
-  const result = await response.json().catch(() => ({}));
-
-  if (!response.ok || !result.ok) {
-    throw new Error(result.message || "Nao foi possivel concluir a acao.");
-  }
-
-  return result;
-}
-
-function loginUser(token, user) {
-  localStorage.setItem(SESSION_KEY, token);
-  renderDashboard(user);
+function updateHeader(user) {
+  document.querySelector("#userNickname").textContent = user.nickname;
+  document.querySelector("#userPublicId").textContent = `ID ${user.id}`;
+  document.querySelector("#friendsMyId").textContent = user.id;
 }
 
 function renderDashboard(user) {
+  currentUser = user;
   authView.hidden = true;
   dashboardView.hidden = false;
   authView.style.display = "none";
   dashboardView.style.display = "block";
-  document.querySelector("#userNickname").textContent = user.nickname;
+  updateHeader(user);
+  showPanel("games");
   window.scrollTo({ top: 0, behavior: "instant" });
 }
 
 function renderAuth() {
+  currentUser = null;
   authView.hidden = false;
   dashboardView.hidden = true;
   authView.style.display = "grid";
   dashboardView.style.display = "none";
 }
 
-async function checkHashAction() {
-  return false;
+function showPanel(name) {
+  Object.entries(views).forEach(([key, view]) => {
+    view.hidden = key !== name;
+    view.classList.toggle("active", key === name);
+  });
+  userMenu.hidden = true;
+  userMenuButton.setAttribute("aria-expanded", "false");
+
+  const titles = {
+    games: ["Painel", "Escolha o jogo"],
+    account: ["Minha conta", "Dados da conta"],
+    friends: ["Amigos", "Convites e jogadores online"],
+  };
+  dashboardEyebrow.textContent = titles[name][0];
+  dashboardTitle.textContent = titles[name][1];
+  window.scrollTo({ top: 0, behavior: "smooth" });
+}
+
+async function loadProfile() {
+  const result = await apiRequest("/api/profile", { method: "GET" });
+  currentUser = result.user;
+  updateHeader(result.user);
+  document.querySelector("#profileId").value = result.user.id;
+  document.querySelector("#profileNickname").value = result.user.nickname;
+  document.querySelector("#profileCpf").value = formatCpf(result.user.cpf);
+}
+
+async function loadFriends() {
+  const list = document.querySelector("#friendList");
+  list.innerHTML = '<p class="muted-label">Carregando amigos...</p>';
+  try {
+    const result = await apiRequest("/api/friends", { method: "GET" });
+    if (!result.friends.length) {
+      list.innerHTML = '<p class="muted-label">Nenhum amigo ainda. Convide pelo ID.</p>';
+      return;
+    }
+    list.innerHTML = result.friends.map((friend) => `
+      <article class="friend-item">
+        <div>
+          <strong>${friend.nickname}</strong>
+          <span>ID ${friend.id} • ${friend.online ? "online" : "offline"} • ${friend.statusText}</span>
+        </div>
+        ${friend.canAccept ? `<button type="button" data-accept-friend="${friend.friendshipId}">Aceitar</button>` : ""}
+        ${friend.status === "accepted" ? `<button type="button" ${friend.online ? "" : "disabled"}>Convidar para jogar</button>` : ""}
+      </article>
+    `).join("");
+  } catch (error) {
+    list.innerHTML = `<p class="form-message error">${error.message}</p>`;
+  }
 }
 
 async function restoreSession() {
   const token = localStorage.getItem(SESSION_KEY);
+  const oldToken = localStorage.getItem(OLD_SESSION_KEY);
+  if (!token && oldToken) {
+    localStorage.setItem(SESSION_KEY, oldToken);
+  }
 
-  if (!token) {
+  if (!token && !oldToken) {
     renderAuth();
     return;
   }
-
   try {
     const result = await apiRequest("/api/session", { method: "GET" });
     renderDashboard(result.user);
-  } catch (error) {
+  } catch {
     localStorage.removeItem(SESSION_KEY);
     renderAuth();
   }
@@ -227,8 +276,7 @@ document.querySelectorAll("[data-auth-tab]").forEach((button) => {
 
 document.querySelector("#logoutButton").addEventListener("click", () => {
   localStorage.removeItem(SESSION_KEY);
-  userMenu.hidden = true;
-  accountPanel.hidden = true;
+  localStorage.removeItem(OLD_SESSION_KEY);
   renderAuth();
   showForm("login");
 });
@@ -238,19 +286,19 @@ userMenuButton.addEventListener("click", () => {
   userMenuButton.setAttribute("aria-expanded", String(!userMenu.hidden));
 });
 
-document.querySelector("#openPasswordPanel").addEventListener("click", () => {
-  userMenu.hidden = true;
-  userMenuButton.setAttribute("aria-expanded", "false");
-  accountPanel.hidden = false;
-  accountPanel.scrollIntoView({ behavior: "smooth", block: "start" });
+document.querySelector("#openAccountPage").addEventListener("click", async () => {
+  showPanel("account");
+  await loadProfile();
 });
 
-document.querySelector("#closePasswordPanel").addEventListener("click", () => {
-  accountPanel.hidden = true;
-  forms.changePassword.reset();
-  clearFieldStates(forms.changePassword);
-  setMessage(document.querySelector("#changePasswordMessage"), "");
+document.querySelector("#friendsButton").addEventListener("click", async () => {
+  showPanel("friends");
+  await loadFriends();
 });
+
+document.querySelector("#backToGamesFromMenu").addEventListener("click", () => showPanel("games"));
+document.querySelector("#backToGamesFromAccount").addEventListener("click", () => showPanel("games"));
+document.querySelector("#backToGamesFromFriends").addEventListener("click", () => showPanel("games"));
 
 document.addEventListener("click", (event) => {
   if (!userMenu.hidden && !event.target.closest(".user-box")) {
@@ -271,6 +319,7 @@ document.querySelectorAll("[data-toggle-password]").forEach((button) => {
 document.querySelector("#nickname").addEventListener("input", (event) => validateNickname(event.target));
 document.querySelector("#cpf").addEventListener("input", (event) => validateCpf(event.target));
 document.querySelector("#loginCpf").addEventListener("input", (event) => validateCpf(event.target));
+document.querySelector("#profileNickname").addEventListener("input", (event) => validateNickname(event.target));
 
 ["#registerPassword", "#confirmPassword"].forEach((selector) => {
   document.querySelector(selector).addEventListener("input", () => {
@@ -286,40 +335,27 @@ document.querySelector("#loginCpf").addEventListener("input", (event) => validat
 
 forms.register.addEventListener("submit", async (event) => {
   event.preventDefault();
-
   const nickname = document.querySelector("#nickname");
   const cpf = document.querySelector("#cpf");
   const password = document.querySelector("#registerPassword");
   const confirmPassword = document.querySelector("#confirmPassword");
   const message = document.querySelector("#registerMessage");
-
-  const nicknameOk = validateNickname(nickname);
-  const cpfOk = validateCpf(cpf);
-  const passwordOk = validatePasswordPair(password, confirmPassword);
-  const isValid = nicknameOk && cpfOk && passwordOk;
-
-  if (!isValid) {
+  if (!validateNickname(nickname) || !validateCpf(cpf) || !validatePasswordPair(password, confirmPassword)) {
     setMessage(message, "Confira os campos marcados antes de continuar.", "error");
     return;
   }
-
   setMessage(message, "Criando conta...", "success");
-
   try {
-    const registeredCpf = cpf.value;
     const result = await apiRequest("/api/register", {
       method: "POST",
-      body: {
-        nickname: nickname.value.trim(),
-        cpf: onlyDigits(cpf.value),
-        password: password.value,
-      },
+      body: { nickname: nickname.value.trim(), cpf: onlyDigits(cpf.value), password: password.value },
     });
     forms.register.reset();
     clearFieldStates(forms.register);
     setMessage(message, result.message, "success");
     showToast("Conta criada. Entrando no painel...");
-    loginUser(result.token, result.user);
+    localStorage.setItem(SESSION_KEY, result.token);
+    renderDashboard(result.user);
   } catch (error) {
     setMessage(message, error.message, "error");
   }
@@ -327,31 +363,25 @@ forms.register.addEventListener("submit", async (event) => {
 
 forms.login.addEventListener("submit", async (event) => {
   event.preventDefault();
-
   const cpf = document.querySelector("#loginCpf");
   const password = document.querySelector("#loginPassword");
   const message = document.querySelector("#loginMessage");
-
   if (!validateCpf(cpf) || !password.value) {
     setMessage(message, "Digite CPF e senha para entrar.", "error");
     return;
   }
-
-  setMessage(message, "Entrando...", "success");
   const submitButton = forms.login.querySelector('button[type="submit"]');
+  setMessage(message, "Entrando...", "success");
   submitButton.disabled = true;
   submitButton.textContent = "Entrando...";
-
   try {
     const result = await apiRequest("/api/login", {
       method: "POST",
-      body: {
-        cpf: onlyDigits(cpf.value),
-        password: password.value,
-      },
+      body: { cpf: onlyDigits(cpf.value), password: password.value },
     });
     setMessage(message, "");
-    loginUser(result.token, result.user);
+    localStorage.setItem(SESSION_KEY, result.token);
+    renderDashboard(result.user);
   } catch (error) {
     setMessage(message, error.message, "error");
   } finally {
@@ -360,43 +390,221 @@ forms.login.addEventListener("submit", async (event) => {
   }
 });
 
-forms.changePassword.addEventListener("submit", async (event) => {
+forms.profile.addEventListener("submit", async (event) => {
   event.preventDefault();
-
-  const currentPassword = document.querySelector("#currentPassword");
-  const password = document.querySelector("#accountNewPassword");
-  const confirmPassword = document.querySelector("#accountNewPasswordConfirm");
-  const message = document.querySelector("#changePasswordMessage");
-
-  if (!validatePasswordPair(password, confirmPassword)) {
-    setMessage(message, "A nova senha e a confirmacao precisam ser iguais.", "error");
+  const nickname = document.querySelector("#profileNickname");
+  const message = document.querySelector("#profileMessage");
+  if (!validateNickname(nickname)) {
+    setMessage(message, "Confira o nickname.", "error");
     return;
   }
-
   try {
-    const result = await apiRequest("/api/change-password", {
-      method: "POST",
-      body: {
-        currentPassword: currentPassword.value,
-        newPassword: password.value,
-      },
+    const result = await apiRequest("/api/profile", {
+      method: "PATCH",
+      body: { nickname: nickname.value.trim() },
     });
-    forms.changePassword.reset();
-    clearFieldStates(forms.changePassword);
-    setMessage(message, result.message, "success");
-    window.setTimeout(() => {
-      accountPanel.hidden = true;
-      setMessage(message, "");
-    }, 1500);
+    currentUser = result.user;
+    updateHeader(result.user);
+    setMessage(message, "Dados salvos.", "success");
   } catch (error) {
     setMessage(message, error.message, "error");
   }
 });
 
-(async function boot() {
-  const handledHash = await checkHashAction();
-
-  if (!handledHash) {
-    await restoreSession();
+forms.changePassword.addEventListener("submit", async (event) => {
+  event.preventDefault();
+  const currentPassword = document.querySelector("#currentPassword");
+  const password = document.querySelector("#accountNewPassword");
+  const confirmPassword = document.querySelector("#accountNewPasswordConfirm");
+  const message = document.querySelector("#changePasswordMessage");
+  if (!validatePasswordPair(password, confirmPassword)) {
+    setMessage(message, "A nova senha e a confirmacao precisam ser iguais.", "error");
+    return;
   }
-})();
+  try {
+    const result = await apiRequest("/api/change-password", {
+      method: "POST",
+      body: { currentPassword: currentPassword.value, newPassword: password.value },
+    });
+    forms.changePassword.reset();
+    clearFieldStates(forms.changePassword);
+    setMessage(message, result.message, "success");
+  } catch (error) {
+    setMessage(message, error.message, "error");
+  }
+});
+
+forms.friendInvite.addEventListener("submit", async (event) => {
+  event.preventDefault();
+  const friendId = Number(document.querySelector("#friendIdInput").value);
+  const message = document.querySelector("#friendsMessage");
+  if (!friendId) {
+    setMessage(message, "Digite o ID do amigo.", "error");
+    return;
+  }
+  try {
+    const result = await apiRequest("/api/friends/invite", {
+      method: "POST",
+      body: { friendId },
+    });
+    forms.friendInvite.reset();
+    setMessage(message, result.message, "success");
+    await loadFriends();
+  } catch (error) {
+    setMessage(message, error.message, "error");
+  }
+});
+
+document.querySelector("#friendList").addEventListener("click", async (event) => {
+  const button = event.target.closest("[data-accept-friend]");
+  if (!button) return;
+  await apiRequest("/api/friends/accept", {
+    method: "POST",
+    body: { friendshipId: Number(button.dataset.acceptFriend) },
+  });
+  await loadFriends();
+});
+
+function createPlayers(mode) {
+  if (mode === "solo") return [
+    { name: currentUser.nickname, misses: 0, hits: 0, streak: 0 },
+    { name: "Bot", misses: 0, hits: 0, streak: 0, bot: true },
+  ];
+  if (mode === "teams") return [
+    { name: "Dupla 1", misses: 0, hits: 0, streak: 0 },
+    { name: "Dupla 2", misses: 0, hits: 0, streak: 0 },
+  ];
+  return [
+    { name: currentUser.nickname, misses: 0, hits: 0, streak: 0 },
+    { name: "Jogador 2", misses: 0, hits: 0, streak: 0 },
+  ];
+}
+
+function startHangman(mode = hangman?.mode || "solo") {
+  const word = hangmanWords[Math.floor(Math.random() * hangmanWords.length)];
+  hangman = {
+    mode,
+    word,
+    normalized: normalizeText(word),
+    guessed: new Set(),
+    turn: 0,
+    locked: false,
+    players: createPlayers(mode),
+  };
+  renderHangman();
+}
+
+function renderHangman() {
+  const active = hangman.players[hangman.turn];
+  document.querySelector("#turnLabel").textContent = hangman.locked ? "Rodada encerrada" : `Vez de ${active.name}`;
+  document.querySelector("#wordSlots").innerHTML = [...hangman.normalized].map((letter) => (
+    hangman.guessed.has(letter) ? `<span>${letter}</span>` : "<span>_</span>"
+  )).join("");
+  document.querySelector("#teamScore").innerHTML = hangman.players.map((player, index) => `
+    <div class="${index === hangman.turn && !hangman.locked ? "active-score" : ""}">
+      <strong>${player.name}</strong>
+      <span>Acertos ${player.hits} • Erros ${player.misses}/6 • Sequencia ${player.streak}</span>
+    </div>
+  `).join("");
+  document.querySelectorAll(".body-part").forEach((part, index) => {
+    part.classList.toggle("visible", active.misses > index);
+  });
+  document.querySelector("#guessWordButton").disabled = hangman.locked || active.streak < 3;
+  renderKeyboard();
+}
+
+function renderKeyboard() {
+  const keyboard = document.querySelector("#letterKeyboard");
+  keyboard.innerHTML = "ABCDEFGHIJKLMNOPQRSTUVWXYZ".split("").map((letter) => `
+    <button type="button" data-letter="${letter}" ${hangman.guessed.has(letter) || hangman.locked ? "disabled" : ""}>${letter}</button>
+  `).join("");
+}
+
+function nextTurn() {
+  hangman.turn = (hangman.turn + 1) % hangman.players.length;
+  renderHangman();
+  const active = hangman.players[hangman.turn];
+  if (active.bot && !hangman.locked) {
+    window.setTimeout(playBotTurn, 700);
+  }
+}
+
+function finishHangman(message, type = "success") {
+  hangman.locked = true;
+  setMessage(document.querySelector("#hangmanMessage"), message, type);
+  renderHangman();
+}
+
+function guessLetter(letter) {
+  if (hangman.locked || hangman.guessed.has(letter)) return;
+  const active = hangman.players[hangman.turn];
+  hangman.guessed.add(letter);
+  const occurrences = [...hangman.normalized].filter((item) => item === letter).length;
+  if (occurrences) {
+    active.hits += occurrences;
+    active.streak += 1;
+    setMessage(document.querySelector("#hangmanMessage"), `${active.name} acertou ${occurrences} letra(s).`, "success");
+  } else {
+    active.misses += 1;
+    active.streak = 0;
+    setMessage(document.querySelector("#hangmanMessage"), `${active.name} errou a letra ${letter}.`, "error");
+  }
+  const solved = [...hangman.normalized].every((item) => hangman.guessed.has(item));
+  if (solved) {
+    const winner = [...hangman.players].sort((a, b) => b.hits - a.hits)[0];
+    finishHangman(`${winner.name} venceu com mais letras acertadas!`);
+    return;
+  }
+  if (active.misses >= 6) {
+    finishHangman(`${active.name} foi enforcado. ${hangman.players[(hangman.turn + 1) % hangman.players.length].name} venceu!`, "error");
+    return;
+  }
+  nextTurn();
+}
+
+function playBotTurn() {
+  const available = "ABCDEFGHIJKLMNOPQRSTUVWXYZ".split("").filter((letter) => !hangman.guessed.has(letter));
+  const smartLetters = [...new Set(hangman.normalized.split(""))].filter((letter) => !hangman.guessed.has(letter));
+  const shouldHit = Math.random() > 0.45 && smartLetters.length;
+  guessLetter(shouldHit ? smartLetters[0] : available[Math.floor(Math.random() * available.length)]);
+}
+
+document.querySelector("#openHangmanGame").addEventListener("click", () => {
+  document.querySelector("#hangmanPanel").hidden = false;
+  startHangman("solo");
+});
+
+document.querySelector("#closeHangmanGame").addEventListener("click", () => {
+  document.querySelector("#hangmanPanel").hidden = true;
+});
+
+document.querySelector("#newHangmanRound").addEventListener("click", () => startHangman());
+
+document.querySelectorAll("[data-game-mode]").forEach((button) => {
+  button.addEventListener("click", () => {
+    document.querySelectorAll("[data-game-mode]").forEach((item) => item.classList.remove("active"));
+    button.classList.add("active");
+    startHangman(button.dataset.gameMode);
+  });
+});
+
+document.querySelector("#letterKeyboard").addEventListener("click", (event) => {
+  const button = event.target.closest("[data-letter]");
+  if (button) guessLetter(button.dataset.letter);
+});
+
+document.querySelector("#guessWordButton").addEventListener("click", () => {
+  const guess = normalizeText(document.querySelector("#wordGuess").value);
+  const active = hangman.players[hangman.turn];
+  if (active.streak < 3) {
+    setMessage(document.querySelector("#hangmanMessage"), "A equipe precisa acertar 3 letras seguidas para chutar.", "error");
+    return;
+  }
+  if (guess === hangman.normalized) {
+    finishHangman(`${active.name} acertou a palavra e venceu!`);
+  } else {
+    finishHangman(`${active.name} errou a palavra e perdeu automaticamente.`, "error");
+  }
+});
+
+restoreSession();
