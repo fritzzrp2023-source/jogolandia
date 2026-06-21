@@ -168,6 +168,10 @@ function getSessionUser(token) {
   return row || null;
 }
 
+function countUsers() {
+  return db.prepare("SELECT count(*) AS total FROM users").get().total;
+}
+
 async function handleRegister(request, response) {
   try {
     const body = await parseJsonBody(request);
@@ -302,6 +306,7 @@ const server = http.createServer((request, response) => {
       name: "Jogolandia",
       url: publicUrl,
       database: path.basename(dbPath),
+      users: countUsers(),
     });
     return;
   }

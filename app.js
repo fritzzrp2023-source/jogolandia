@@ -151,15 +151,20 @@ async function apiRequest(path, options = {}) {
   }
 
   let response;
+  const controller = new AbortController();
+  const timeout = window.setTimeout(() => controller.abort(), 12000);
 
   try {
     response = await fetch(`${API_BASE}${path}`, {
       ...options,
       headers,
       body: options.body ? JSON.stringify(options.body) : undefined,
+      signal: controller.signal,
     });
   } catch (error) {
-    throw new Error("Nao foi possivel falar com o servidor. Tente recarregar a pagina.");
+    throw new Error("O servidor demorou para responder. Recarregue a pagina e tente novamente.");
+  } finally {
+    window.clearTimeout(timeout);
   }
 
   const result = await response.json().catch(() => ({}));
@@ -300,6 +305,9 @@ forms.login.addEventListener("submit", async (event) => {
   }
 
   setMessage(message, "Entrando...", "success");
+  const submitButton = forms.login.querySelector('button[type="submit"]');
+  submitButton.disabled = true;
+  submitButton.textContent = "Entrando...";
 
   try {
     const result = await apiRequest("/api/login", {
@@ -313,6 +321,9 @@ forms.login.addEventListener("submit", async (event) => {
     loginUser(result.token, result.user);
   } catch (error) {
     setMessage(message, error.message, "error");
+  } finally {
+    submitButton.disabled = false;
+    submitButton.textContent = "Entrar";
   }
 });
 
