@@ -184,12 +184,17 @@ function loginUser(token, user) {
 function renderDashboard(user) {
   authView.hidden = true;
   dashboardView.hidden = false;
+  authView.style.display = "none";
+  dashboardView.style.display = "block";
   document.querySelector("#userNickname").textContent = user.nickname;
+  window.scrollTo({ top: 0, behavior: "instant" });
 }
 
 function renderAuth() {
   authView.hidden = false;
   dashboardView.hidden = true;
+  authView.style.display = "grid";
+  dashboardView.style.display = "none";
 }
 
 async function checkHashAction() {
