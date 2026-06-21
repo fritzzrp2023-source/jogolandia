@@ -69,6 +69,28 @@ function logSafeError(context, error) {
   console.error(`[${context}] ${error.code || error.name || "Error"}: ${error.message}`);
 }
 
+function publicErrorMessage(error, fallback) {
+  const message = String(error.message || "");
+
+  if (message.includes("SMTP nao configurado")) {
+    return "SMTP nao configurado no Render. Confira SMTP_USER, SMTP_PASS e SMTP_FROM.";
+  }
+
+  if (error.code === "EACCES" || error.code === "ETIMEDOUT" || error.code === "ECONNREFUSED") {
+    return "Nao foi possivel conectar ao Gmail SMTP. Confira as variaveis SMTP e tente novamente.";
+  }
+
+  if (message.includes("535") || message.includes("534")) {
+    return "O Gmail recusou o login SMTP. Confira se SMTP_PASS e uma senha de app valida.";
+  }
+
+  if (message.includes("550") || message.includes("553")) {
+    return "O Gmail recusou o remetente. Confira se SMTP_FROM e igual ao seu Gmail.";
+  }
+
+  return fallback;
+}
+
 function readBody(request) {
   return new Promise((resolve, reject) => {
     let body = "";
@@ -372,7 +394,7 @@ async function handleRegister(request, response) {
     send(response, 201, { ok: true, message: "Conta criada. Verifique seu email para liberar o login." });
   } catch (error) {
     logSafeError("register", error);
-    send(response, 500, { ok: false, message: "Nao foi possivel criar a conta." });
+    send(response, 500, { ok: false, message: publicErrorMessage(error, "Nao foi possivel criar a conta.") });
   }
 }
 
@@ -417,7 +439,7 @@ async function handleLogin(request, response) {
     send(response, 200, { ok: true, token: createSession(user.id), user: publicUser(user) });
   } catch (error) {
     logSafeError("login", error);
-    send(response, 500, { ok: false, message: "Nao foi possivel entrar agora." });
+    send(response, 500, { ok: false, message: publicErrorMessage(error, "Nao foi possivel entrar agora.") });
   }
 }
 
@@ -452,7 +474,7 @@ async function handleRequestReset(request, response) {
     send(response, 200, { ok: true, message: "Enviamos o link de redefinicao." });
   } catch (error) {
     logSafeError("request-reset", error);
-    send(response, 500, { ok: false, message: "Nao foi possivel enviar a redefinicao." });
+    send(response, 500, { ok: false, message: publicErrorMessage(error, "Nao foi possivel enviar a redefinicao.") });
   }
 }
 
