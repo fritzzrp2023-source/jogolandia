@@ -30,8 +30,8 @@
 
           <form class="auth-form active" id="loginForm" novalidate>
             <label class="field">
-              <span>Nickname</span>
-              <input id="loginNickname" type="text" autocomplete="username" placeholder="Seu nome no jogo" minlength="3" maxlength="18" required />
+              <span>CPF</span>
+              <input id="loginCpf" type="text" inputmode="numeric" autocomplete="username" placeholder="000.000.000-00" maxlength="14" required />
               <small class="field-message"></small>
             </label>
 
@@ -49,6 +49,12 @@
             <label class="field">
               <span>Nickname</span>
               <input id="nickname" type="text" autocomplete="nickname" placeholder="Seu nome no jogo" minlength="3" maxlength="18" required />
+              <small class="field-message"></small>
+            </label>
+
+            <label class="field">
+              <span>CPF</span>
+              <input id="cpf" type="text" inputmode="numeric" autocomplete="off" placeholder="000.000.000-00" maxlength="14" required />
               <small class="field-message"></small>
             </label>
 

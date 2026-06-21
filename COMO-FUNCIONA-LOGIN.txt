@@ -3,12 +3,13 @@ Login atual da Jogolandia
 O cadastro usa somente:
 
 - Nickname
+- CPF
 - Senha
 - Confirmar senha
 
 O login usa:
 
-- Nickname
+- CPF
 - Senha
 
 Nao existe mais verificacao por email nem redefinicao por email.

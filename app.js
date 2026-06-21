@@ -45,6 +45,56 @@ function validateNickname(input) {
   return true;
 }
 
+function onlyDigits(value) {
+  return String(value || "").replace(/\D/g, "");
+}
+
+function formatCpf(value) {
+  return onlyDigits(value)
+    .slice(0, 11)
+    .replace(/(\d{3})(\d)/, "$1.$2")
+    .replace(/(\d{3})(\d)/, "$1.$2")
+    .replace(/(\d{3})(\d{1,2})$/, "$1-$2");
+}
+
+function isCpfValid(value) {
+  const cpf = onlyDigits(value);
+
+  if (cpf.length !== 11 || /^(\d)\1{10}$/.test(cpf)) {
+    return false;
+  }
+
+  const calcDigit = (base) => {
+    let total = 0;
+
+    for (let index = 0; index < base.length; index += 1) {
+      total += Number(base[index]) * (base.length + 1 - index);
+    }
+
+    const rest = (total * 10) % 11;
+    return rest === 10 ? 0 : rest;
+  };
+
+  return calcDigit(cpf.slice(0, 9)) === Number(cpf[9]) && calcDigit(cpf.slice(0, 10)) === Number(cpf[10]);
+}
+
+function validateCpf(input) {
+  input.value = formatCpf(input.value);
+
+  if (!input.value) {
+    setFieldState(input, "", "");
+    return false;
+  }
+
+  if (!isCpfValid(input.value)) {
+    setFieldState(input, "invalid", "CPF invalido.");
+    return false;
+  }
+
+  setFieldState(input, "valid", "CPF valido.");
+  return true;
+}
+
 function validatePassword(input) {
   if (!input.value) {
     setFieldState(input, "", "");
@@ -178,7 +228,8 @@ document.querySelector("#logoutButton").addEventListener("click", () => {
 });
 
 document.querySelector("#nickname").addEventListener("input", (event) => validateNickname(event.target));
-document.querySelector("#loginNickname").addEventListener("input", (event) => validateNickname(event.target));
+document.querySelector("#cpf").addEventListener("input", (event) => validateCpf(event.target));
+document.querySelector("#loginCpf").addEventListener("input", (event) => validateCpf(event.target));
 
 ["#registerPassword", "#confirmPassword"].forEach((selector) => {
   document.querySelector(selector).addEventListener("input", () => {
@@ -196,13 +247,15 @@ forms.register.addEventListener("submit", async (event) => {
   event.preventDefault();
 
   const nickname = document.querySelector("#nickname");
+  const cpf = document.querySelector("#cpf");
   const password = document.querySelector("#registerPassword");
   const confirmPassword = document.querySelector("#confirmPassword");
   const message = document.querySelector("#registerMessage");
 
   const nicknameOk = validateNickname(nickname);
+  const cpfOk = validateCpf(cpf);
   const passwordOk = validatePasswordPair(password, confirmPassword);
-  const isValid = nicknameOk && passwordOk;
+  const isValid = nicknameOk && cpfOk && passwordOk;
 
   if (!isValid) {
     setMessage(message, "Confira os campos marcados antes de continuar.", "error");
@@ -216,6 +269,7 @@ forms.register.addEventListener("submit", async (event) => {
       method: "POST",
       body: {
         nickname: nickname.value.trim(),
+        cpf: onlyDigits(cpf.value),
         password: password.value,
       },
     });
@@ -231,12 +285,12 @@ forms.register.addEventListener("submit", async (event) => {
 forms.login.addEventListener("submit", async (event) => {
   event.preventDefault();
 
-  const nickname = document.querySelector("#loginNickname");
+  const cpf = document.querySelector("#loginCpf");
   const password = document.querySelector("#loginPassword");
   const message = document.querySelector("#loginMessage");
 
-  if (!validateNickname(nickname) || !password.value) {
-    setMessage(message, "Digite nickname e senha para entrar.", "error");
+  if (!validateCpf(cpf) || !password.value) {
+    setMessage(message, "Digite CPF e senha para entrar.", "error");
     return;
   }
 
@@ -244,7 +298,7 @@ forms.login.addEventListener("submit", async (event) => {
     const result = await apiRequest("/api/login", {
       method: "POST",
       body: {
-        nickname: nickname.value.trim(),
+        cpf: onlyDigits(cpf.value),
         password: password.value,
       },
     });

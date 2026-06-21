@@ -44,10 +44,21 @@ if (userColumns.some((column) => column.name === "email")) {
   }
 }
 
+if (userColumns.length > 0 && !userColumns.some((column) => column.name === "cpf")) {
+  const suffix = Date.now();
+  const hasSessions = db.prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'sessions'").get();
+  db.exec(`ALTER TABLE users RENAME TO users_nickname_backup_${suffix};`);
+
+  if (hasSessions) {
+    db.exec(`ALTER TABLE sessions RENAME TO sessions_nickname_backup_${suffix};`);
+  }
+}
+
 db.exec(`
   CREATE TABLE IF NOT EXISTS users (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     nickname TEXT NOT NULL UNIQUE,
+    cpf TEXT NOT NULL UNIQUE,
     password_hash TEXT NOT NULL,
     salt TEXT NOT NULL,
     created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
@@ -101,6 +112,31 @@ function normalizeNickname(nickname) {
   return String(nickname || "").trim();
 }
 
+function normalizeCpf(cpf) {
+  return String(cpf || "").replace(/\D/g, "");
+}
+
+function isCpfValid(cpfValue) {
+  const cpf = normalizeCpf(cpfValue);
+
+  if (cpf.length !== 11 || /^(\d)\1{10}$/.test(cpf)) {
+    return false;
+  }
+
+  const calcDigit = (base) => {
+    let total = 0;
+
+    for (let index = 0; index < base.length; index += 1) {
+      total += Number(base[index]) * (base.length + 1 - index);
+    }
+
+    const rest = (total * 10) % 11;
+    return rest === 10 ? 0 : rest;
+  };
+
+  return calcDigit(cpf.slice(0, 9)) === Number(cpf[9]) && calcDigit(cpf.slice(0, 10)) === Number(cpf[10]);
+}
+
 function createToken() {
   return crypto.randomBytes(32).toString("hex");
 }
@@ -151,6 +187,7 @@ async function handleRegister(request, response) {
   try {
     const body = await parseJsonBody(request);
     const nickname = normalizeNickname(body.nickname);
+    const cpf = normalizeCpf(body.cpf);
     const password = String(body.password || "");
 
     if (nickname.length < 3 || nickname.length > 18) {
@@ -163,17 +200,27 @@ async function handleRegister(request, response) {
       return;
     }
 
+    if (!isCpfValid(cpf)) {
+      send(response, 400, { ok: false, message: "CPF invalido." });
+      return;
+    }
+
     if (db.prepare("SELECT id FROM users WHERE lower(nickname) = lower(?)").get(nickname)) {
       send(response, 409, { ok: false, message: "Este nickname ja esta em uso." });
+      return;
+    }
+
+    if (db.prepare("SELECT id FROM users WHERE cpf = ?").get(cpf)) {
+      send(response, 409, { ok: false, message: "Este CPF ja esta cadastrado." });
       return;
     }
 
     const passwordData = hashPassword(password);
 
     db.prepare(
-      `INSERT INTO users (nickname, password_hash, salt)
-       VALUES (?, ?, ?)`,
-    ).run(nickname, passwordData.hash, passwordData.salt);
+      `INSERT INTO users (nickname, cpf, password_hash, salt)
+       VALUES (?, ?, ?, ?)`,
+    ).run(nickname, cpf, passwordData.hash, passwordData.salt);
     send(response, 201, { ok: true, message: "Conta criada. Agora voce pode fazer login." });
   } catch (error) {
     logSafeError("register", error);
@@ -184,12 +231,12 @@ async function handleRegister(request, response) {
 async function handleLogin(request, response) {
   try {
     const body = await parseJsonBody(request);
-    const nickname = normalizeNickname(body.nickname);
+    const cpf = normalizeCpf(body.cpf);
     const password = String(body.password || "");
-    const user = db.prepare("SELECT * FROM users WHERE lower(nickname) = lower(?)").get(nickname);
+    const user = db.prepare("SELECT * FROM users WHERE cpf = ?").get(cpf);
 
     if (!user || !verifyPassword(password, user.salt, user.password_hash)) {
-      send(response, 401, { ok: false, message: "Nickname ou senha incorretos." });
+      send(response, 401, { ok: false, message: "CPF ou senha incorretos." });
       return;
     }
 
