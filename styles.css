@@ -58,6 +58,16 @@ button {
   max-width: 640px;
 }
 
+.brand-logo {
+  display: block;
+  width: min(640px, 92vw);
+  max-height: 330px;
+  object-fit: contain;
+  object-position: left center;
+  margin: 0 0 18px;
+  filter: drop-shadow(0 22px 40px rgba(0, 0, 0, 0.5));
+}
+
 .eyebrow {
   margin: 0 0 10px;
   color: var(--accent-2);
@@ -73,7 +83,6 @@ p {
   margin-top: 0;
 }
 
-.brand-panel h1,
 .dashboard-header h1 {
   margin-bottom: 14px;
   font-size: clamp(3rem, 7vw, 6.8rem);
@@ -255,6 +264,16 @@ p {
   justify-content: space-between;
   gap: 18px;
   margin-bottom: 34px;
+}
+
+.dashboard-logo {
+  display: block;
+  width: min(280px, 42vw);
+  max-height: 120px;
+  object-fit: contain;
+  object-position: left center;
+  margin-bottom: 6px;
+  filter: drop-shadow(0 12px 24px rgba(0, 0, 0, 0.38));
 }
 
 .dashboard-header h1 {
@@ -794,8 +813,13 @@ p {
     padding: 18px;
   }
 
-  .brand-panel h1 {
-    font-size: 3rem;
+  .brand-logo {
+    width: min(360px, 92vw);
+    max-height: 210px;
+  }
+
+  .dashboard-logo {
+    width: min(240px, 80vw);
   }
 
   .auth-card {
