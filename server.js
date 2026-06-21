@@ -154,7 +154,7 @@ function publicUser(user) {
 }
 
 function createPublicId() {
-  return String(1000000000 + crypto.randomInt(9000000000));
+  return String(1254879548 + crypto.randomInt(8745120452));
 }
 
 async function createUniquePublicId() {
@@ -171,7 +171,7 @@ async function createUniquePublicId() {
 }
 
 function getPublicId(user) {
-  return user.public_id || String(user.id).padStart(10, "0");
+  return user.public_id || String(1254879548 + Number(user.id || 0) - 1);
 }
 
 function createSession(userId) {

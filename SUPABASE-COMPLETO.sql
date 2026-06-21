@@ -16,8 +16,8 @@ alter table public.users add column if not exists salt text;
 alter table public.users add column if not exists created_at timestamptz not null default now();
 
 update public.users
-set public_id = lpad(id::text, 10, '0')
-where public_id is null or public_id = '';
+set public_id = (1254879548 + id - 1)::text
+where public_id is null or public_id = '' or public_id ~ '^0+[0-9]+$';
 
 alter table public.users alter column public_id set not null;
 

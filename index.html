@@ -90,7 +90,7 @@
           <div>
             <img class="dashboard-logo" src="assets/jogarium-logo.png" alt="Jogarium" />
             <p class="eyebrow" id="dashboardEyebrow">Painel</p>
-            <h1 id="dashboardTitle">Jogo da Forca</h1>
+            <h1 id="dashboardTitle">Todos os jogos</h1>
           </div>
           <div class="dashboard-actions">
             <button class="nav-button" id="rankingButton" type="button">Ranking</button>
@@ -111,7 +111,33 @@
         </header>
 
         <section class="panel-view active" id="gamesView">
-          <section class="hangman-setup" id="hangmanSetup">
+          <div class="games-grid" id="gamesGrid">
+            <article class="game-card featured-game">
+              <img src="assets/hangman-card.png" alt="Jogo da Forca" />
+              <div>
+                <p class="eyebrow">Disponivel</p>
+                <h2>Jogo da Forca</h2>
+                <p>Configure dificuldade, modo solo, 1x1 ou 2x2 e jogue com amigos.</p>
+              </div>
+              <button type="button" id="openHangmanGame">Jogar agora</button>
+            </article>
+
+            <article class="game-card locked-game">
+              <span class="game-icon">?</span>
+              <h2>Quem Sou Eu?</h2>
+              <p>Um jogador recebe uma palavra e o grupo tenta descobrir por dicas.</p>
+              <button type="button" disabled>Em breve</button>
+            </article>
+
+            <article class="game-card locked-game">
+              <span class="game-icon">!</span>
+              <h2>Votacao Secreta</h2>
+              <p>Perguntas leves, votos anonimos e revelacao no final.</p>
+              <button type="button" disabled>Em breve</button>
+            </article>
+          </div>
+
+          <section class="hangman-setup" id="hangmanSetup" hidden>
             <div class="hangman-cover">
               <img src="assets/hangman-card.png" alt="Jogo da Forca" />
               <div>
@@ -128,6 +154,7 @@
                 <p class="eyebrow">Configurar partida</p>
                 <h2>Prepare o jogo da forca</h2>
               </div>
+              <button class="link-button" id="closeHangmanSetup" type="button">Voltar aos jogos</button>
             </div>
 
             <div class="setup-grid">
@@ -353,6 +380,6 @@
 
     <div class="toast" id="toast" hidden></div>
 
-    <script src="app.js?v=20260621-10"></script>
+    <script src="app.js?v=20260621-12"></script>
   </body>
 </html>

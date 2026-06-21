@@ -196,7 +196,6 @@ function renderDashboard(user) {
   dashboardView.style.display = "block";
   updateHeader(user);
   showPanel("games");
-  prepareHangmanHome();
   window.scrollTo({ top: 0, behavior: "instant" });
 }
 
@@ -217,7 +216,7 @@ function showPanel(name) {
   userMenuButton.setAttribute("aria-expanded", "false");
 
   const titles = {
-    games: ["Forca", "Jogo da Forca"],
+    games: ["Painel", "Todos os jogos"],
     account: ["Minha conta", "Dados da conta"],
     friends: ["Amigos", "Convites e jogadores online"],
     ranking: ["Ranking", "Melhores jogadores"],
@@ -225,12 +224,19 @@ function showPanel(name) {
   dashboardEyebrow.textContent = titles[name][0];
   dashboardTitle.textContent = titles[name][1];
   if (name === "games") {
-    prepareHangmanHome();
+    showGamesHome();
   }
   window.scrollTo({ top: 0, behavior: "smooth" });
 }
 
+function showGamesHome() {
+  document.querySelector("#gamesGrid").hidden = false;
+  document.querySelector("#hangmanSetup").hidden = true;
+  document.querySelector("#hangmanPanel").hidden = true;
+}
+
 function prepareHangmanHome() {
+  document.querySelector("#gamesGrid").hidden = true;
   document.querySelector("#hangmanSetup").hidden = false;
   document.querySelector("#hangmanPanel").hidden = true;
   loadSetupFriends();
@@ -378,6 +384,8 @@ document.querySelector("#backToGamesFromMenu").addEventListener("click", () => s
 document.querySelector("#backToGamesFromAccount").addEventListener("click", () => showPanel("games"));
 document.querySelector("#backToGamesFromFriends").addEventListener("click", () => showPanel("games"));
 document.querySelector("#backToGamesFromRanking").addEventListener("click", () => showPanel("games"));
+document.querySelector("#openHangmanGame").addEventListener("click", () => prepareHangmanHome());
+document.querySelector("#closeHangmanSetup").addEventListener("click", () => showGamesHome());
 
 document.addEventListener("click", (event) => {
   if (!userMenu.hidden && !event.target.closest(".user-box")) {
@@ -725,7 +733,7 @@ function playBotTurn() {
 
 document.querySelector("#closeHangmanGame").addEventListener("click", () => {
   document.querySelector("#hangmanPanel").hidden = true;
-  document.querySelector("#hangmanSetup").hidden = false;
+  showGamesHome();
 });
 
 document.querySelector("#changeHangmanConfig").addEventListener("click", () => {
