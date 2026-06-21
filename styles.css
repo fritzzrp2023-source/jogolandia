@@ -368,6 +368,44 @@ p {
   background: rgba(13, 22, 33, 0.88);
 }
 
+.hangman-cover {
+  display: grid;
+  grid-template-columns: minmax(180px, 310px) minmax(0, 1fr);
+  align-items: center;
+  gap: clamp(18px, 3vw, 34px);
+  margin-bottom: 22px;
+  padding: clamp(16px, 2.5vw, 26px);
+  border: 1px solid rgba(255, 207, 90, 0.34);
+  border-radius: 8px;
+  background:
+    radial-gradient(circle at 24% 30%, rgba(122, 63, 255, 0.34), transparent 42%),
+    linear-gradient(135deg, rgba(31, 22, 70, 0.86), rgba(7, 15, 26, 0.78));
+  box-shadow: 0 22px 65px rgba(0, 0, 0, 0.28);
+  overflow: hidden;
+}
+
+.hangman-cover img {
+  width: 100%;
+  aspect-ratio: 1;
+  object-fit: cover;
+  border-radius: 8px;
+  box-shadow: 0 18px 38px rgba(0, 0, 0, 0.42);
+}
+
+.hangman-cover h2 {
+  margin-bottom: 10px;
+  font-size: clamp(2.4rem, 5vw, 4.8rem);
+  line-height: 0.95;
+}
+
+.hangman-cover p:not(.eyebrow) {
+  max-width: 620px;
+  margin-bottom: 0;
+  color: #dce6f5;
+  font-size: 1.12rem;
+  line-height: 1.5;
+}
+
 .page-heading,
 .game-toolbar,
 .game-footer {
@@ -798,6 +836,7 @@ p {
   .profile-grid,
   .friends-layout,
   .setup-grid,
+  .hangman-cover,
   .hangman-board {
     grid-template-columns: 1fr;
   }
@@ -842,6 +881,10 @@ p {
     align-items: stretch;
     flex-direction: column;
     width: 100%;
+  }
+
+  .hangman-cover h2 {
+    font-size: 2.3rem;
   }
 
   .guess-area,
