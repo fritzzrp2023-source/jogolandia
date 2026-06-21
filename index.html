@@ -37,7 +37,10 @@
 
             <label class="field">
               <span>Senha</span>
-              <input id="loginPassword" type="password" autocomplete="current-password" placeholder="Digite sua senha" required />
+              <div class="password-control">
+                <input id="loginPassword" type="password" autocomplete="current-password" placeholder="Digite sua senha" required />
+                <button class="password-toggle" type="button" data-toggle-password="loginPassword">Mostrar</button>
+              </div>
               <small class="field-message"></small>
             </label>
 
@@ -60,13 +63,19 @@
 
             <label class="field">
               <span>Senha</span>
-              <input id="registerPassword" type="password" autocomplete="new-password" placeholder="Crie uma senha" minlength="6" required />
+              <div class="password-control">
+                <input id="registerPassword" type="password" autocomplete="new-password" placeholder="Crie uma senha" minlength="6" required />
+                <button class="password-toggle" type="button" data-toggle-password="registerPassword">Mostrar</button>
+              </div>
               <small class="field-message"></small>
             </label>
 
             <label class="field">
               <span>Confirmar senha</span>
-              <input id="confirmPassword" type="password" autocomplete="new-password" placeholder="Repita a senha" minlength="6" required />
+              <div class="password-control">
+                <input id="confirmPassword" type="password" autocomplete="new-password" placeholder="Repita a senha" minlength="6" required />
+                <button class="password-toggle" type="button" data-toggle-password="confirmPassword">Mostrar</button>
+              </div>
               <small class="field-message"></small>
             </label>
 
@@ -123,17 +132,26 @@
           <form class="password-form" id="changePasswordForm" novalidate>
             <label class="field">
               <span>Senha atual</span>
-              <input id="currentPassword" type="password" autocomplete="current-password" placeholder="Digite sua senha atual" required />
+              <div class="password-control">
+                <input id="currentPassword" type="password" autocomplete="current-password" placeholder="Digite sua senha atual" required />
+                <button class="password-toggle" type="button" data-toggle-password="currentPassword">Mostrar</button>
+              </div>
               <small class="field-message"></small>
             </label>
             <label class="field">
               <span>Nova senha</span>
-              <input id="accountNewPassword" type="password" autocomplete="new-password" placeholder="Nova senha" minlength="6" required />
+              <div class="password-control">
+                <input id="accountNewPassword" type="password" autocomplete="new-password" placeholder="Nova senha" minlength="6" required />
+                <button class="password-toggle" type="button" data-toggle-password="accountNewPassword">Mostrar</button>
+              </div>
               <small class="field-message"></small>
             </label>
             <label class="field">
               <span>Confirmar nova senha</span>
-              <input id="accountNewPasswordConfirm" type="password" autocomplete="new-password" placeholder="Repita a nova senha" minlength="6" required />
+              <div class="password-control">
+                <input id="accountNewPasswordConfirm" type="password" autocomplete="new-password" placeholder="Repita a nova senha" minlength="6" required />
+                <button class="password-toggle" type="button" data-toggle-password="accountNewPasswordConfirm">Mostrar</button>
+              </div>
               <small class="field-message"></small>
             </label>
             <button class="primary-button" type="submit">Salvar senha</button>

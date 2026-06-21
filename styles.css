@@ -175,6 +175,21 @@ p {
   transition: border-color 160ms ease, box-shadow 160ms ease, background 160ms ease;
 }
 
+.password-control {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 92px;
+  gap: 8px;
+}
+
+.password-toggle {
+  min-height: 48px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.08);
+  color: #dbe6f4;
+  font-weight: 800;
+}
+
 .field input:focus {
   border-color: rgba(54, 209, 196, 0.9);
   box-shadow: 0 0 0 3px rgba(54, 209, 196, 0.16);

@@ -32,7 +32,8 @@ const types = {
 };
 
 const db = new DatabaseSync(dbPath);
-const userColumns = db.prepare("PRAGMA table_info(users)").all();
+const hasUsersTable = db.prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'users'").get();
+const userColumns = hasUsersTable ? db.prepare("PRAGMA table_info(users)").all() : [];
 
 if (userColumns.some((column) => column.name === "email")) {
   const suffix = Date.now();

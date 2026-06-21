@@ -211,6 +211,15 @@ document.querySelector("#logoutButton").addEventListener("click", () => {
   showForm("login");
 });
 
+document.querySelectorAll("[data-toggle-password]").forEach((button) => {
+  button.addEventListener("click", () => {
+    const input = document.querySelector(`#${button.dataset.togglePassword}`);
+    const shouldShow = input.type === "password";
+    input.type = shouldShow ? "text" : "password";
+    button.textContent = shouldShow ? "Ocultar" : "Mostrar";
+  });
+});
+
 document.querySelector("#nickname").addEventListener("input", (event) => validateNickname(event.target));
 document.querySelector("#cpf").addEventListener("input", (event) => validateCpf(event.target));
 document.querySelector("#loginCpf").addEventListener("input", (event) => validateCpf(event.target));
