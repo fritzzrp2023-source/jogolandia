@@ -17,11 +17,11 @@ alter table public.users add column if not exists created_at timestamptz not nul
 
 update public.users
 set public_id = (1254879548 + id - 1)::text
-where public_id is null or public_id = '' or public_id ~ '^0+[0-9]+$';
+where public_id is null or public_id = '' or public_id like '0%';
 
 alter table public.users alter column public_id set not null;
 
-create unique index if not exists users_nickname_unique_idx on public.users (lower(nickname));
+create unique index if not exists users_nickname_unique_idx on public.users (nickname);
 create unique index if not exists users_cpf_unique_idx on public.users (cpf);
 create unique index if not exists users_public_id_unique_idx on public.users (public_id);
 create index if not exists users_public_id_idx on public.users (public_id);
