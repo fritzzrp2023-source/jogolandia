@@ -127,8 +127,7 @@ p {
 
 .tab-button,
 .ghost-button,
-.link-button,
-.game-card button {
+.link-button {
   min-height: 42px;
   border: 1px solid var(--line);
   border-radius: 8px;
@@ -341,16 +340,6 @@ p {
   gap: 20px;
 }
 
-.games-grid {
-  display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 16px;
-}
-
-.single-game {
-  grid-template-columns: minmax(280px, 520px);
-}
-
 .page-panel,
 .hangman-panel,
 .hangman-setup {
@@ -535,17 +524,6 @@ p {
   font-weight: 800;
 }
 
-.game-card {
-  min-height: 260px;
-  display: grid;
-  align-content: start;
-  gap: 14px;
-  padding: 20px;
-  border: 1px solid var(--line);
-  border-radius: 8px;
-  background: rgba(13, 22, 33, 0.86);
-}
-
 .game-icon {
   width: 46px;
   height: 46px;
@@ -556,22 +534,6 @@ p {
   color: #111925;
   font-size: 1.5rem;
   font-weight: 950;
-}
-
-.game-card h2 {
-  margin-bottom: 0;
-  font-size: 1.28rem;
-}
-
-.game-card p {
-  color: var(--muted);
-  line-height: 1.5;
-}
-
-.game-card button {
-  align-self: end;
-  margin-top: auto;
-  color: #d8e2ef;
 }
 
 .hangman-panel {
@@ -814,10 +776,6 @@ p {
     padding-top: 28px;
   }
 
-  .games-grid {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-
   .profile-grid,
   .friends-layout,
   .setup-grid,
@@ -849,13 +807,8 @@ p {
     flex-direction: column;
   }
 
-  .user-box,
-  .games-grid {
+  .user-box {
     width: 100%;
-  }
-
-  .games-grid {
-    grid-template-columns: 1fr;
   }
 
   .dashboard-actions,

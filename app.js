@@ -194,6 +194,7 @@ function renderDashboard(user) {
   dashboardView.style.display = "block";
   updateHeader(user);
   showPanel("games");
+  prepareHangmanHome();
   window.scrollTo({ top: 0, behavior: "instant" });
 }
 
@@ -214,13 +215,22 @@ function showPanel(name) {
   userMenuButton.setAttribute("aria-expanded", "false");
 
   const titles = {
-    games: ["Painel", "Escolha o jogo"],
+    games: ["Forca", "Jogo da Forca"],
     account: ["Minha conta", "Dados da conta"],
     friends: ["Amigos", "Convites e jogadores online"],
   };
   dashboardEyebrow.textContent = titles[name][0];
   dashboardTitle.textContent = titles[name][1];
+  if (name === "games") {
+    prepareHangmanHome();
+  }
   window.scrollTo({ top: 0, behavior: "smooth" });
+}
+
+function prepareHangmanHome() {
+  document.querySelector("#hangmanSetup").hidden = false;
+  document.querySelector("#hangmanPanel").hidden = true;
+  loadSetupFriends();
 }
 
 async function loadProfile() {
@@ -637,19 +647,9 @@ function playBotTurn() {
   guessLetter(shouldHit ? smartLetters[0] : available[Math.floor(Math.random() * available.length)]);
 }
 
-document.querySelector("#openHangmanGame").addEventListener("click", () => {
-  document.querySelector("#hangmanSetup").hidden = false;
-  document.querySelector("#hangmanPanel").hidden = true;
-  loadSetupFriends();
-});
-
-document.querySelector("#closeHangmanSetup").addEventListener("click", () => {
-  document.querySelector("#hangmanSetup").hidden = true;
-});
-
 document.querySelector("#closeHangmanGame").addEventListener("click", () => {
   document.querySelector("#hangmanPanel").hidden = true;
-  document.querySelector("#hangmanSetup").hidden = true;
+  document.querySelector("#hangmanSetup").hidden = false;
 });
 
 document.querySelector("#changeHangmanConfig").addEventListener("click", () => {

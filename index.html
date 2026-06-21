@@ -89,7 +89,7 @@
         <header class="dashboard-header">
           <div>
             <p class="eyebrow" id="dashboardEyebrow">Painel</p>
-            <h1 id="dashboardTitle">Escolha o jogo</h1>
+            <h1 id="dashboardTitle">Jogo da Forca</h1>
           </div>
           <div class="dashboard-actions">
             <button class="nav-button" id="friendsButton" type="button">Amigos</button>
@@ -109,22 +109,12 @@
         </header>
 
         <section class="panel-view active" id="gamesView">
-          <div class="games-grid single-game">
-            <article class="game-card available">
-              <span class="game-icon">F</span>
-              <h2>Jogo da Forca</h2>
-              <p>Jogue sozinho contra o bot, em 1x1 ou em 2x2 com equipes alternando letras.</p>
-              <button type="button" id="openHangmanGame">Jogar agora</button>
-            </article>
-          </div>
-
-          <section class="hangman-setup" id="hangmanSetup" hidden>
+          <section class="hangman-setup" id="hangmanSetup">
             <div class="game-toolbar">
               <div>
                 <p class="eyebrow">Configurar partida</p>
                 <h2>Prepare o jogo da forca</h2>
               </div>
-              <button class="link-button" id="closeHangmanSetup" type="button">Voltar aos jogos</button>
             </div>
 
             <div class="setup-grid">
@@ -336,6 +326,6 @@
 
     <div class="toast" id="toast" hidden></div>
 
-    <script src="app.js?v=20260621-6"></script>
+    <script src="app.js?v=20260621-7"></script>
   </body>
 </html>
