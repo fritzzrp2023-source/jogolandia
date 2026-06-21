@@ -258,7 +258,7 @@ async function loadFriends() {
       <article class="friend-item">
         <div>
           <strong>${friend.nickname}</strong>
-          <span>ID ${friend.publicId} • ${friend.online ? "online" : "offline"} • ${friend.statusText}</span>
+          <span>ID ${friend.publicId} - ${friend.online ? "online" : "offline"} - ${friend.statusText}</span>
         </div>
         ${friend.canAccept ? `<button type="button" data-accept-friend="${friend.friendshipId}">Aceitar</button>` : ""}
         ${friend.status === "accepted" ? `<button type="button" ${friend.online ? "" : "disabled"}>Convidar para jogar</button>` : ""}
@@ -286,7 +286,7 @@ async function loadRanking() {
         <span class="ranking-position">${index + 1}</span>
         <div>
           <strong>${item.nickname}</strong>
-          <small>ID ${item.userId} • ${item.wins} vitoria(s)</small>
+          <small>ID ${item.publicId} - ${item.wins} vitoria(s)</small>
         </div>
         <strong>${item.points} pts</strong>
       </article>
@@ -314,7 +314,7 @@ async function loadSetupFriends() {
         <input type="checkbox" value="${friend.id}" ${friend.online ? "" : "disabled"} />
         <span>
           <strong>${friend.nickname}</strong>
-          <small>ID ${friend.publicId} • ${friend.online ? "online" : "offline"}</small>
+          <small>ID ${friend.publicId} - ${friend.online ? "online" : "offline"}</small>
         </span>
       </label>
     `).join("");
@@ -605,7 +605,7 @@ function renderHangman() {
   document.querySelector("#teamScore").innerHTML = hangman.players.map((player, index) => `
     <div class="${index === hangman.turn && !hangman.locked ? "active-score" : ""}">
       <strong>${player.name}</strong>
-      <span>Acertos ${player.hits} • Erros ${player.misses}/${hangman.maxMisses} • Sequencia ${player.streak}</span>
+      <span>Acertos ${player.hits} - Erros ${player.misses}/${hangman.maxMisses} - Sequencia ${player.streak}</span>
     </div>
   `).join("");
   document.querySelectorAll(".body-part").forEach((part, index) => {

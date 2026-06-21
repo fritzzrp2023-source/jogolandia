@@ -45,6 +45,18 @@ function logSafeError(context, error) {
   console.error(`[${context}] ${error.code || error.name || "Error"}: ${error.message}`);
 }
 
+function isSchemaError(error, name) {
+  const text = `${error.message || ""} ${JSON.stringify(error.details || {})}`.toLowerCase();
+  return text.includes(String(name).toLowerCase());
+}
+
+function sendSchemaError(response, area = "banco de dados") {
+  send(response, 500, {
+    ok: false,
+    message: `Falta configurar o ${area} no Supabase. Rode o arquivo SUPABASE-COMPLETO.sql no SQL Editor.`,
+  });
+}
+
 function ensureSupabaseConfig() {
   if (!supabaseUrl || !supabaseServiceKey) {
     throw new Error("Supabase nao configurado no Render.");
@@ -135,7 +147,7 @@ function verifyPassword(password, salt, storedHash) {
 function publicUser(user) {
   return {
     id: user.id,
-    publicId: user.public_id || String(user.id).padStart(10, "0"),
+    publicId: getPublicId(user),
     nickname: user.nickname,
     cpf: user.cpf,
   };
@@ -158,6 +170,10 @@ async function createUniquePublicId() {
   throw new Error("Nao foi possivel gerar ID publico.");
 }
 
+function getPublicId(user) {
+  return user.public_id || String(user.id).padStart(10, "0");
+}
+
 function createSession(userId) {
   const token = createToken();
   const expiresAt = Date.now() + 1000 * 60 * 60 * 24 * 7;
@@ -178,7 +194,7 @@ async function getSessionUser(token) {
     return null;
   }
 
-  const users = await supabaseRequest(`users?select=id,public_id,nickname,cpf&id=${eq(session.user_id)}&limit=1`);
+  const users = await supabaseRequest(`users?select=*&id=${eq(session.user_id)}&limit=1`);
   return users[0] || null;
 }
 
@@ -285,6 +301,10 @@ async function handleRegister(request, response) {
     });
   } catch (error) {
     logSafeError("register", error);
+    if (isSchemaError(error, "public_id")) {
+      sendSchemaError(response, "ID publico dos usuarios");
+      return;
+    }
     send(response, 500, { ok: false, message: "Nao foi possivel criar a conta." });
   }
 }
@@ -398,7 +418,7 @@ async function handleFriends(request, response) {
       return;
     }
 
-    const users = await supabaseRequest(`users?select=id,public_id,nickname&id=in.(${otherIds.join(",")})`);
+    const users = await supabaseRequest(`users?select=*&id=in.(${otherIds.join(",")})`);
     const onlineIds = await getOnlineUserIds(otherIds);
     const friends = friendships.map((friendship) => {
       const otherId = Number(friendship.requester_id) === Number(sessionUser.id)
@@ -412,7 +432,7 @@ async function handleFriends(request, response) {
 
       return {
         id: otherId,
-        publicId: user?.public_id || String(otherId).padStart(10, "0"),
+        publicId: user ? getPublicId(user) : String(otherId).padStart(10, "0"),
         friendshipId: friendship.id,
         nickname: user?.nickname || `Usuario ${otherId}`,
         status: friendship.status,
@@ -425,7 +445,11 @@ async function handleFriends(request, response) {
     send(response, 200, { ok: true, friends });
   } catch (error) {
     logSafeError("friends", error);
-    send(response, 500, { ok: false, message: "Nao foi possivel carregar amigos. Confira a tabela friendships no Supabase." });
+    if (isSchemaError(error, "friendships") || isSchemaError(error, "public_id")) {
+      sendSchemaError(response, "sistema de amigos");
+      return;
+    }
+    send(response, 500, { ok: false, message: "Nao foi possivel carregar amigos agora." });
   }
 }
 
@@ -445,7 +469,7 @@ async function handleFriendInvite(request, response) {
       return;
     }
 
-    if (friendPublicId === String(sessionUser.public_id)) {
+    if (friendPublicId === getPublicId(sessionUser)) {
       send(response, 400, { ok: false, message: "Digite o ID de outro usuario." });
       return;
     }
@@ -483,7 +507,11 @@ async function handleFriendInvite(request, response) {
     send(response, 201, { ok: true, message: `Convite enviado para ${target[0].nickname}.` });
   } catch (error) {
     logSafeError("friend-invite", error);
-    send(response, 500, { ok: false, message: "Nao foi possivel enviar o convite. Confira a tabela friendships no Supabase." });
+    if (isSchemaError(error, "friendships") || isSchemaError(error, "public_id")) {
+      sendSchemaError(response, "sistema de amigos");
+      return;
+    }
+    send(response, 500, { ok: false, message: "Nao foi possivel enviar o convite agora." });
   }
 }
 
@@ -578,7 +606,11 @@ async function handleScoreWin(request, response) {
     send(response, 200, { ok: true, pointsEarned, score });
   } catch (error) {
     logSafeError("score-win", error);
-    send(response, 500, { ok: false, message: "Nao foi possivel salvar a pontuacao. Confira a tabela user_scores no Supabase." });
+    if (isSchemaError(error, "user_scores")) {
+      sendSchemaError(response, "sistema de pontuacao");
+      return;
+    }
+    send(response, 500, { ok: false, message: "Nao foi possivel salvar a pontuacao agora." });
   }
 }
 
@@ -598,11 +630,12 @@ async function handleRanking(request, response) {
       return;
     }
 
-    const users = await supabaseRequest(`users?select=id,nickname&id=in.(${userIds.join(",")})`);
+    const users = await supabaseRequest(`users?select=*&id=in.(${userIds.join(",")})`);
     const ranking = scores.map((score) => {
       const user = users.find((item) => Number(item.id) === Number(score.user_id));
       return {
         userId: Number(score.user_id),
+        publicId: user ? getPublicId(user) : String(score.user_id).padStart(10, "0"),
         nickname: user?.nickname || `Usuario ${score.user_id}`,
         points: Number(score.points || 0),
         wins: Number(score.wins || 0),
@@ -612,7 +645,11 @@ async function handleRanking(request, response) {
     send(response, 200, { ok: true, ranking });
   } catch (error) {
     logSafeError("ranking", error);
-    send(response, 500, { ok: false, message: "Nao foi possivel carregar o ranking. Confira a tabela user_scores no Supabase." });
+    if (isSchemaError(error, "user_scores")) {
+      sendSchemaError(response, "ranking");
+      return;
+    }
+    send(response, 500, { ok: false, message: "Nao foi possivel carregar o ranking agora." });
   }
 }
 
