@@ -112,29 +112,9 @@
 
         <section class="panel-view active" id="gamesView">
           <div class="games-grid" id="gamesGrid">
-            <article class="game-card featured-game">
+            <button class="game-cover-button" type="button" id="openHangmanGame" aria-label="Abrir Jogo da Forca">
               <img src="assets/hangman-card.png" alt="Jogo da Forca" />
-              <div>
-                <p class="eyebrow">Disponivel</p>
-                <h2>Jogo da Forca</h2>
-                <p>Configure dificuldade, modo solo, 1x1 ou 2x2 e jogue com amigos.</p>
-              </div>
-              <button type="button" id="openHangmanGame">Jogar agora</button>
-            </article>
-
-            <article class="game-card locked-game">
-              <span class="game-icon">?</span>
-              <h2>Quem Sou Eu?</h2>
-              <p>Um jogador recebe uma palavra e o grupo tenta descobrir por dicas.</p>
-              <button type="button" disabled>Em breve</button>
-            </article>
-
-            <article class="game-card locked-game">
-              <span class="game-icon">!</span>
-              <h2>Votacao Secreta</h2>
-              <p>Perguntas leves, votos anonimos e revelacao no final.</p>
-              <button type="button" disabled>Em breve</button>
-            </article>
+            </button>
           </div>
 
           <section class="hangman-setup" id="hangmanSetup" hidden>
@@ -380,6 +360,6 @@
 
     <div class="toast" id="toast" hidden></div>
 
-    <script src="app.js?v=20260621-12"></script>
+    <script src="app.js?v=20260621-13"></script>
   </body>
 </html>
