@@ -59,23 +59,7 @@ function formatCpf(value) {
 
 function isCpfValid(value) {
   const cpf = onlyDigits(value);
-
-  if (cpf.length !== 11 || /^(\d)\1{10}$/.test(cpf)) {
-    return false;
-  }
-
-  const calcDigit = (base) => {
-    let total = 0;
-
-    for (let index = 0; index < base.length; index += 1) {
-      total += Number(base[index]) * (base.length + 1 - index);
-    }
-
-    const rest = (total * 10) % 11;
-    return rest === 10 ? 0 : rest;
-  };
-
-  return calcDigit(cpf.slice(0, 9)) === Number(cpf[9]) && calcDigit(cpf.slice(0, 10)) === Number(cpf[10]);
+  return cpf.length === 11;
 }
 
 function validateCpf(input) {
@@ -87,7 +71,7 @@ function validateCpf(input) {
   }
 
   if (!isCpfValid(input.value)) {
-    setFieldState(input, "invalid", "CPF invalido.");
+    setFieldState(input, "invalid", "Digite 11 numeros.");
     return false;
   }
 
