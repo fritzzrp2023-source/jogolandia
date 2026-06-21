@@ -14,6 +14,7 @@ const views = {
   games: document.querySelector("#gamesView"),
   account: document.querySelector("#accountView"),
   friends: document.querySelector("#friendsView"),
+  notifications: document.querySelector("#notificationsView"),
   ranking: document.querySelector("#rankingView"),
 };
 
@@ -41,6 +42,10 @@ let currentUser = null;
 let hangman = null;
 let setupFriends = [];
 let lastAwardedMatchId = null;
+let notificationsTimer = null;
+let remoteMatchTimer = null;
+let activeRemoteMatchId = null;
+let lastNotificationCount = 0;
 
 function onlyDigits(value) {
   return String(value || "").replace(/\D/g, "");
@@ -188,6 +193,25 @@ function updateHeader(user) {
   document.querySelector("#friendsMyId").textContent = user.publicId;
 }
 
+function updateNotificationBadge(count) {
+  const badge = document.querySelector("#notificationBadge");
+  badge.hidden = count <= 0;
+  badge.textContent = String(count);
+}
+
+function stopNotifications() {
+  window.clearInterval(notificationsTimer);
+  notificationsTimer = null;
+  lastNotificationCount = 0;
+  updateNotificationBadge(0);
+}
+
+function startNotifications() {
+  stopNotifications();
+  loadNotifications(false);
+  notificationsTimer = window.setInterval(() => loadNotifications(false), 8000);
+}
+
 function renderDashboard(user) {
   currentUser = user;
   authView.hidden = true;
@@ -195,12 +219,15 @@ function renderDashboard(user) {
   authView.style.display = "none";
   dashboardView.style.display = "block";
   updateHeader(user);
+  startNotifications();
   showPanel("games");
   window.scrollTo({ top: 0, behavior: "instant" });
 }
 
 function renderAuth() {
   currentUser = null;
+  stopNotifications();
+  stopRemotePolling();
   authView.hidden = false;
   dashboardView.hidden = true;
   authView.style.display = "grid";
@@ -219,6 +246,7 @@ function showPanel(name) {
     games: ["Painel", "Todos os jogos"],
     account: ["Minha conta", "Dados da conta"],
     friends: ["Amigos", "Convites e jogadores online"],
+    notifications: ["Convites", "Notificacoes recebidas"],
     ranking: ["Ranking", "Melhores jogadores"],
   };
   dashboardEyebrow.textContent = titles[name][0];
@@ -230,6 +258,7 @@ function showPanel(name) {
 }
 
 function showGamesHome() {
+  stopRemotePolling();
   document.querySelector("#gamesGrid").hidden = false;
   document.querySelector("#hangmanSetup").hidden = true;
   document.querySelector("#hangmanPanel").hidden = true;
@@ -329,6 +358,73 @@ async function loadSetupFriends() {
   }
 }
 
+function renderNotifications(data) {
+  const list = document.querySelector("#notificationList");
+  const friendInvites = data.friendInvites || [];
+  const matchInvites = data.matchInvites || [];
+  const waitingMatches = data.waitingMatches || [];
+
+  if (!friendInvites.length && !matchInvites.length && !waitingMatches.length) {
+    list.innerHTML = '<p class="muted-label">Nenhum convite pendente agora.</p>';
+    return;
+  }
+
+  const friendHtml = friendInvites.map((invite) => `
+    <article class="notification-item">
+      <div>
+        <strong>Convite de amizade</strong>
+        <span>${invite.nickname} quer ser seu amigo. ID ${invite.publicId}</span>
+      </div>
+      <button type="button" data-notification-friend="${invite.friendshipId}">Aceitar amizade</button>
+    </article>
+  `).join("");
+
+  const matchHtml = matchInvites.map((match) => `
+    <article class="notification-item highlight">
+      <div>
+        <strong>Convite de partida</strong>
+        <span>${match.modeLabel} na forca. Aceite para entrar na sala com seus amigos.</span>
+      </div>
+      <button type="button" data-accept-match="${match.id}">Aceitar partida</button>
+    </article>
+  `).join("");
+
+  const waitingHtml = waitingMatches.map((match) => `
+    <article class="notification-item">
+      <div>
+        <strong>Partida aguardando</strong>
+        <span>${match.waitingFor.length ? `Falta aceitar: ${match.waitingFor.map((user) => user.nickname).join(", ")}` : "Todos aceitaram."}</span>
+      </div>
+      <button type="button" data-open-match="${match.id}">Abrir sala</button>
+    </article>
+  `).join("");
+
+  list.innerHTML = friendHtml + matchHtml + waitingHtml;
+}
+
+async function loadNotifications(renderList = false) {
+  if (!currentUser) return null;
+
+  try {
+    const result = await apiRequest("/api/notifications", { method: "GET" });
+    const count = (result.friendInvites || []).length + (result.matchInvites || []).length;
+    updateNotificationBadge(count);
+
+    if (count > lastNotificationCount && lastNotificationCount !== 0) {
+      showToast("Voce recebeu um novo convite.");
+    }
+
+    lastNotificationCount = count;
+    if (renderList) renderNotifications(result);
+    return result;
+  } catch (error) {
+    if (renderList) {
+      document.querySelector("#notificationList").innerHTML = `<p class="form-message error">${error.message}</p>`;
+    }
+    return null;
+  }
+}
+
 async function restoreSession() {
   const token = localStorage.getItem(SESSION_KEY);
   const oldToken = localStorage.getItem(OLD_SESSION_KEY);
@@ -375,6 +471,11 @@ document.querySelector("#friendsButton").addEventListener("click", async () => {
   await loadFriends();
 });
 
+document.querySelector("#notificationsButton").addEventListener("click", async () => {
+  showPanel("notifications");
+  await loadNotifications(true);
+});
+
 document.querySelector("#rankingButton").addEventListener("click", async () => {
   showPanel("ranking");
   await loadRanking();
@@ -383,6 +484,7 @@ document.querySelector("#rankingButton").addEventListener("click", async () => {
 document.querySelector("#backToGamesFromMenu").addEventListener("click", () => showPanel("games"));
 document.querySelector("#backToGamesFromAccount").addEventListener("click", () => showPanel("games"));
 document.querySelector("#backToGamesFromFriends").addEventListener("click", () => showPanel("games"));
+document.querySelector("#backToGamesFromNotifications").addEventListener("click", () => showPanel("games"));
 document.querySelector("#backToGamesFromRanking").addEventListener("click", () => showPanel("games"));
 document.querySelector("#openHangmanGame").addEventListener("click", () => prepareHangmanHome());
 document.querySelector("#closeHangmanSetup").addEventListener("click", () => showGamesHome());
@@ -553,6 +655,38 @@ document.querySelector("#friendList").addEventListener("click", async (event) =>
     body: { friendshipId: Number(button.dataset.acceptFriend) },
   });
   await loadFriends();
+  await loadNotifications(false);
+});
+
+document.querySelector("#notificationList").addEventListener("click", async (event) => {
+  const friendButton = event.target.closest("[data-notification-friend]");
+  const matchButton = event.target.closest("[data-accept-match]");
+  const openMatchButton = event.target.closest("[data-open-match]");
+
+  if (friendButton) {
+    await apiRequest("/api/friends/accept", {
+      method: "POST",
+      body: { friendshipId: Number(friendButton.dataset.notificationFriend) },
+    });
+    showToast("Convite de amizade aceito.");
+    await loadNotifications(true);
+    return;
+  }
+
+  if (matchButton) {
+    const result = await apiRequest("/api/matches/accept", {
+      method: "POST",
+      body: { matchId: Number(matchButton.dataset.acceptMatch) },
+    });
+    showToast(result.message);
+    showRemoteMatch(result.match);
+    await loadNotifications(false);
+    return;
+  }
+
+  if (openMatchButton) {
+    await loadRemoteMatch(Number(openMatchButton.dataset.openMatch), true);
+  }
 });
 
 function getSelectedHangmanConfig() {
@@ -579,7 +713,136 @@ function createPlayers(mode, invitedFriends = []) {
   ];
 }
 
+function stopRemotePolling() {
+  window.clearInterval(remoteMatchTimer);
+  remoteMatchTimer = null;
+  activeRemoteMatchId = null;
+}
+
+function isMyRemoteTurn() {
+  if (!hangman?.remoteMatchId) return true;
+  const active = hangman.players[hangman.turn] || {};
+  return (active.userIds || []).map(Number).includes(Number(currentUser?.id));
+}
+
+function showWaitingMatch(match) {
+  stopRemotePolling();
+  activeRemoteMatchId = match.id;
+  document.querySelector("#gamesGrid").hidden = true;
+  document.querySelector("#hangmanSetup").hidden = true;
+  document.querySelector("#hangmanPanel").hidden = false;
+  document.querySelector("#wordGuess").value = "";
+  document.querySelector("#turnLabel").textContent = "Aguardando inicio da partida";
+  document.querySelector("#wordSlots").innerHTML = "<span>...</span>";
+  document.querySelector("#letterKeyboard").innerHTML = "";
+  document.querySelector("#teamScore").innerHTML = match.playerIds.map((userId) => {
+    const accepted = match.acceptedIds.includes(Number(userId));
+    const waitingUser = match.waitingFor.find((user) => Number(user.id) === Number(userId));
+    const label = waitingUser?.nickname || (Number(userId) === Number(currentUser.id) ? currentUser.nickname : `Usuario ${userId}`);
+    return `
+      <div class="${accepted ? "active-score" : ""}">
+        <strong>${label}</strong>
+        <span>${accepted ? "Convite aceito" : "Aguardando aceitar"}</span>
+      </div>
+    `;
+  }).join("");
+  document.querySelector("#matchSummary").innerHTML = `
+    <span>${match.modeLabel}</span>
+    <span>${difficultyRules[match.difficulty]?.label || "Normal"}</span>
+    <span>Aguardando</span>
+  `;
+  document.querySelector("#guessWordButton").disabled = true;
+  document.querySelector("#newHangmanRound").disabled = true;
+  setMessage(
+    document.querySelector("#hangmanMessage"),
+    match.waitingFor.length
+      ? `Aguardando: ${match.waitingFor.map((user) => user.nickname).join(", ")}.`
+      : "Todos aceitaram. Preparando partida...",
+    "success",
+  );
+  startRemotePolling(match.id);
+}
+
+function showRemoteMatch(match) {
+  if (match.status === "pending") {
+    showWaitingMatch(match);
+    return;
+  }
+
+  const state = match.state || {};
+  hangman = {
+    matchId: `remote-${match.id}`,
+    remoteMatchId: match.id,
+    mode: match.mode,
+    difficulty: match.difficulty,
+    maxMisses: state.maxMisses || (difficultyRules[match.difficulty] || difficultyRules.normal).maxMisses,
+    word: state.word || "",
+    normalized: state.normalized || "",
+    guessed: new Set(state.guessed || []),
+    turn: Number(state.turn || 0),
+    locked: Boolean(state.locked || match.status === "finished"),
+    players: state.players || [],
+  };
+  document.querySelector("#gamesGrid").hidden = true;
+  document.querySelector("#hangmanSetup").hidden = true;
+  document.querySelector("#hangmanPanel").hidden = false;
+  document.querySelector("#newHangmanRound").disabled = true;
+  setMessage(document.querySelector("#hangmanMessage"), state.message || "Partida carregada.", state.messageType || "success");
+  renderHangman();
+  startRemotePolling(match.id);
+}
+
+function startRemotePolling(matchId) {
+  activeRemoteMatchId = matchId;
+  window.clearInterval(remoteMatchTimer);
+  remoteMatchTimer = window.setInterval(() => loadRemoteMatch(matchId, false), 3000);
+}
+
+async function loadRemoteMatch(matchId, showErrors = true) {
+  try {
+    const result = await apiRequest(`/api/matches/${matchId}`, { method: "GET" });
+    showRemoteMatch(result.match);
+  } catch (error) {
+    if (showErrors) {
+      showToast(error.message);
+    }
+  }
+}
+
+async function startSharedHangman(config) {
+  const message = document.querySelector("#setupMessage");
+  const requiredFriends = config.mode === "teams" ? 3 : 1;
+
+  if (config.invitedFriends.length !== requiredFriends) {
+    setMessage(
+      message,
+      config.mode === "teams" ? "Para 2x2, selecione exatamente 3 amigos online." : "Para 1x1, selecione exatamente 1 amigo online.",
+      "error",
+    );
+    return;
+  }
+
+  setMessage(message, "Enviando convite de partida...", "success");
+
+  try {
+    const result = await apiRequest("/api/matches/invite", {
+      method: "POST",
+      body: {
+        mode: config.mode,
+        difficulty: config.difficulty,
+        friendIds: config.invitedFriends.map((friend) => friend.id),
+      },
+    });
+    showToast(result.message);
+    showRemoteMatch(result.match);
+    await loadNotifications(false);
+  } catch (error) {
+    setMessage(message, error.message, "error");
+  }
+}
+
 function startHangman(config = getSelectedHangmanConfig()) {
+  stopRemotePolling();
   const rules = difficultyRules[config.difficulty] || difficultyRules.normal;
   const dictionary = hangmanWords[config.difficulty] || hangmanWords.normal;
   const word = dictionary[Math.floor(Math.random() * dictionary.length)];
@@ -599,6 +862,7 @@ function startHangman(config = getSelectedHangmanConfig()) {
   };
   document.querySelector("#hangmanSetup").hidden = true;
   document.querySelector("#hangmanPanel").hidden = false;
+  document.querySelector("#newHangmanRound").disabled = false;
   document.querySelector("#wordGuess").value = "";
   setMessage(document.querySelector("#hangmanMessage"), "Partida iniciada. Boa sorte!", "success");
   renderHangman();
@@ -606,7 +870,10 @@ function startHangman(config = getSelectedHangmanConfig()) {
 
 function renderHangman() {
   const active = hangman.players[hangman.turn];
-  document.querySelector("#turnLabel").textContent = hangman.locked ? "Rodada encerrada" : `Vez de ${active.name}`;
+  const myTurn = isMyRemoteTurn();
+  document.querySelector("#turnLabel").textContent = hangman.locked
+    ? "Rodada encerrada"
+    : `${myTurn ? "Sua vez" : "Aguarde"} - vez de ${active.name}`;
   document.querySelector("#wordSlots").innerHTML = [...hangman.normalized].map((letter) => (
     hangman.guessed.has(letter) ? `<span>${letter}</span>` : "<span>_</span>"
   )).join("");
@@ -620,7 +887,7 @@ function renderHangman() {
     const visibleParts = Math.ceil((active.misses / hangman.maxMisses) * 6);
     part.classList.toggle("visible", visibleParts > index);
   });
-  document.querySelector("#guessWordButton").disabled = hangman.locked || active.streak < 3;
+  document.querySelector("#guessWordButton").disabled = hangman.locked || active.streak < 3 || !myTurn;
   const modeLabel = hangman.mode === "solo" ? "Solo vs bot" : hangman.mode === "duel" ? "1x1" : "2x2";
   document.querySelector("#matchSummary").innerHTML = `
     <span>${modeLabel}</span>
@@ -632,8 +899,9 @@ function renderHangman() {
 
 function renderKeyboard() {
   const keyboard = document.querySelector("#letterKeyboard");
+  const myTurn = isMyRemoteTurn();
   keyboard.innerHTML = "ABCDEFGHIJKLMNOPQRSTUVWXYZ".split("").map((letter) => `
-    <button type="button" data-letter="${letter}" ${hangman.guessed.has(letter) || hangman.locked ? "disabled" : ""}>${letter}</button>
+    <button type="button" data-letter="${letter}" ${hangman.guessed.has(letter) || hangman.locked || !myTurn ? "disabled" : ""}>${letter}</button>
   `).join("");
 }
 
@@ -685,7 +953,24 @@ async function awardHangmanWin(winner, reason) {
   }
 }
 
+async function guessRemoteLetter(letter) {
+  try {
+    const result = await apiRequest(`/api/matches/${hangman.remoteMatchId}/guess-letter`, {
+      method: "POST",
+      body: { letter },
+    });
+    showRemoteMatch(result.match);
+  } catch (error) {
+    setMessage(document.querySelector("#hangmanMessage"), error.message, "error");
+  }
+}
+
 function guessLetter(letter) {
+  if (hangman?.remoteMatchId) {
+    guessRemoteLetter(letter);
+    return;
+  }
+
   if (hangman.locked || hangman.guessed.has(letter)) return;
   const active = hangman.players[hangman.turn];
   hangman.guessed.add(letter);
@@ -732,11 +1017,13 @@ function playBotTurn() {
 }
 
 document.querySelector("#closeHangmanGame").addEventListener("click", () => {
+  stopRemotePolling();
   document.querySelector("#hangmanPanel").hidden = true;
   showGamesHome();
 });
 
 document.querySelector("#changeHangmanConfig").addEventListener("click", () => {
+  stopRemotePolling();
   document.querySelector("#hangmanPanel").hidden = true;
   document.querySelector("#hangmanSetup").hidden = false;
   loadSetupFriends();
@@ -748,16 +1035,37 @@ document.querySelector("#newHangmanRound").addEventListener("click", () => start
   invitedFriends: hangman?.invitedFriends || [],
 }));
 
-document.querySelector("#startConfiguredHangman").addEventListener("click", () => startHangman(getSelectedHangmanConfig()));
+document.querySelector("#startConfiguredHangman").addEventListener("click", () => {
+  const config = getSelectedHangmanConfig();
+  if (config.mode !== "solo") {
+    startSharedHangman(config);
+    return;
+  }
+  startHangman(config);
+});
 
 document.querySelector("#letterKeyboard").addEventListener("click", (event) => {
   const button = event.target.closest("[data-letter]");
   if (button) guessLetter(button.dataset.letter);
 });
 
-document.querySelector("#guessWordButton").addEventListener("click", () => {
+document.querySelector("#guessWordButton").addEventListener("click", async () => {
   const guess = normalizeText(document.querySelector("#wordGuess").value);
   const active = hangman.players[hangman.turn];
+
+  if (hangman?.remoteMatchId) {
+    try {
+      const result = await apiRequest(`/api/matches/${hangman.remoteMatchId}/guess-word`, {
+        method: "POST",
+        body: { guess },
+      });
+      showRemoteMatch(result.match);
+    } catch (error) {
+      setMessage(document.querySelector("#hangmanMessage"), error.message, "error");
+    }
+    return;
+  }
+
   if (!guess) {
     setMessage(document.querySelector("#hangmanMessage"), "Digite uma palavra antes de chutar.", "error");
     return;

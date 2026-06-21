@@ -95,6 +95,10 @@
           <div class="dashboard-actions">
             <button class="nav-button" id="rankingButton" type="button">Ranking</button>
             <button class="nav-button" id="friendsButton" type="button">Amigos</button>
+            <button class="nav-button notification-button" id="notificationsButton" type="button">
+              Convites
+              <span class="notification-badge" id="notificationBadge" hidden>0</span>
+            </button>
             <div class="user-box">
               <button class="user-menu-button" id="userMenuButton" type="button" aria-expanded="false">
                 <span id="userNickname"></span>
@@ -200,6 +204,7 @@
             </div>
 
             <button class="primary-button start-game-button" id="startConfiguredHangman" type="button">Iniciar jogo</button>
+            <p class="form-message" id="setupMessage" role="status"></p>
           </section>
 
           <section class="hangman-panel" id="hangmanPanel" hidden>
@@ -342,6 +347,20 @@
           </div>
         </section>
 
+        <section class="panel-view" id="notificationsView" hidden>
+          <div class="page-panel">
+            <div class="page-heading">
+              <div>
+                <p class="eyebrow">Convites</p>
+                <h2>Notificacoes recebidas</h2>
+              </div>
+              <button class="link-button" id="backToGamesFromNotifications" type="button">Voltar aos jogos</button>
+            </div>
+
+            <div class="notification-list" id="notificationList"></div>
+          </div>
+        </section>
+
         <section class="panel-view" id="rankingView" hidden>
           <div class="page-panel">
             <div class="page-heading">
@@ -360,6 +379,6 @@
 
     <div class="toast" id="toast" hidden></div>
 
-    <script src="app.js?v=20260621-13"></script>
+    <script src="app.js?v=20260621-14"></script>
   </body>
 </html>

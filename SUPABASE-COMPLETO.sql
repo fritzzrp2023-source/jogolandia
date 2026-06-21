@@ -64,7 +64,25 @@ create table if not exists public.user_scores (
 create index if not exists user_scores_points_idx on public.user_scores (points desc);
 create index if not exists user_scores_wins_idx on public.user_scores (wins desc);
 
+create table if not exists public.game_matches (
+  id bigserial primary key,
+  host_id bigint not null references public.users(id) on delete cascade,
+  player_ids bigint[] not null,
+  accepted_ids bigint[] not null default '{}',
+  status text not null default 'pending' check (status in ('pending', 'active', 'finished', 'cancelled')),
+  mode text not null,
+  difficulty text not null,
+  state jsonb not null default '{}'::jsonb,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+create index if not exists game_matches_host_idx on public.game_matches (host_id);
+create index if not exists game_matches_status_idx on public.game_matches (status);
+create index if not exists game_matches_player_ids_idx on public.game_matches using gin (player_ids);
+
 alter table public.users enable row level security;
 alter table public.sessions enable row level security;
 alter table public.friendships enable row level security;
 alter table public.user_scores enable row level security;
+alter table public.game_matches enable row level security;

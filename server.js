@@ -174,6 +174,22 @@ function getPublicId(user) {
   return user.public_id || String(1254879548 + Number(user.id || 0) - 1);
 }
 
+const hangmanWords = {
+  easy: ["amizade", "equipe", "desafio", "segredo", "palavra", "jogador", "vitoria", "rodada", "dupla", "missao", "atalho", "memoria"],
+  normal: ["campeonato", "controle", "tabuleiro", "aventura", "partida", "estrategia", "conquista", "diversao", "energia", "convite", "ranking", "resposta"],
+  hard: ["raciocinio", "colaboracao", "comunicacao", "sobrevivencia", "inteligencia", "competitividade", "entretenimento", "planejamento", "concentracao", "persistencia"],
+};
+
+const difficultyRules = {
+  easy: { maxMisses: 7 },
+  normal: { maxMisses: 6 },
+  hard: { maxMisses: 5 },
+};
+
+function normalizeText(value) {
+  return String(value || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toUpperCase();
+}
+
 function createSession(userId) {
   const token = createToken();
   const expiresAt = Date.now() + 1000 * 60 * 60 * 24 * 7;
@@ -653,6 +669,507 @@ async function handleRanking(request, response) {
   }
 }
 
+async function awardScoreForUser(userId, { game = "hangman", mode = "solo", difficulty = "normal" }) {
+  const pointsEarned = calculateWinPoints({ mode, difficulty });
+  const existing = await supabaseRequest(`user_scores?select=*&user_id=${eq(userId)}&limit=1`);
+
+  if (existing.length) {
+    const current = existing[0];
+    await supabaseRequest(`user_scores?user_id=${eq(userId)}`, {
+      method: "PATCH",
+      body: JSON.stringify({
+        points: Number(current.points || 0) + pointsEarned,
+        wins: Number(current.wins || 0) + 1,
+        last_game: game,
+        updated_at: new Date().toISOString(),
+      }),
+    });
+    return pointsEarned;
+  }
+
+  await supabaseRequest("user_scores", {
+    method: "POST",
+    body: JSON.stringify({
+      user_id: userId,
+      points: pointsEarned,
+      wins: 1,
+      last_game: game,
+    }),
+  });
+  return pointsEarned;
+}
+
+async function getUsersMap(userIds) {
+  const uniqueIds = [...new Set(userIds.map(Number).filter(Boolean))];
+
+  if (!uniqueIds.length) {
+    return new Map();
+  }
+
+  const users = await supabaseRequest(`users?select=*&id=in.(${uniqueIds.join(",")})`);
+  return new Map(users.map((user) => [Number(user.id), user]));
+}
+
+async function getAcceptedFriendIds(userId) {
+  const friendships = await supabaseRequest(
+    `friendships?select=requester_id,addressee_id,status&status=eq.accepted&or=(requester_id.eq.${userId},addressee_id.eq.${userId})`,
+  );
+
+  return new Set(friendships.map((friendship) => (
+    Number(friendship.requester_id) === Number(userId)
+      ? Number(friendship.addressee_id)
+      : Number(friendship.requester_id)
+  )));
+}
+
+function modeLabel(mode) {
+  if (mode === "teams") return "2x2";
+  if (mode === "duel") return "1x1";
+  return "Solo";
+}
+
+function buildHangmanPlayers(mode, playerIds, usersMap) {
+  const userName = (userId) => usersMap.get(Number(userId))?.nickname || `Usuario ${userId}`;
+
+  if (mode === "teams") {
+    return [
+      {
+        name: `${userName(playerIds[0])} + ${userName(playerIds[1])}`,
+        userIds: [Number(playerIds[0]), Number(playerIds[1])],
+        misses: 0,
+        hits: 0,
+        streak: 0,
+      },
+      {
+        name: `${userName(playerIds[2])} + ${userName(playerIds[3])}`,
+        userIds: [Number(playerIds[2]), Number(playerIds[3])],
+        misses: 0,
+        hits: 0,
+        streak: 0,
+      },
+    ];
+  }
+
+  return playerIds.map((userId) => ({
+    name: userName(userId),
+    userIds: [Number(userId)],
+    misses: 0,
+    hits: 0,
+    streak: 0,
+  }));
+}
+
+async function createHangmanState(match) {
+  const usersMap = await getUsersMap(match.player_ids);
+  const words = hangmanWords[match.difficulty] || hangmanWords.normal;
+  const word = words[crypto.randomInt(words.length)];
+  const rules = difficultyRules[match.difficulty] || difficultyRules.normal;
+
+  return {
+    word,
+    normalized: normalizeText(word),
+    guessed: [],
+    turn: 0,
+    locked: false,
+    maxMisses: rules.maxMisses,
+    players: buildHangmanPlayers(match.mode, match.player_ids, usersMap),
+    message: "Partida iniciada. Boa sorte!",
+    messageType: "success",
+    winnerUserIds: [],
+    awarded: false,
+  };
+}
+
+function currentMatchPlayer(state) {
+  return state.players[state.turn] || state.players[0];
+}
+
+function userCanPlayTurn(state, userId) {
+  const active = currentMatchPlayer(state);
+  return (active.userIds || []).map(Number).includes(Number(userId));
+}
+
+async function awardMatchIfNeeded(match, state) {
+  if (state.awarded || !state.winnerUserIds?.length) {
+    return state;
+  }
+
+  await Promise.all(state.winnerUserIds.map((userId) => awardScoreForUser(userId, {
+    game: "hangman",
+    mode: match.mode,
+    difficulty: match.difficulty,
+  })));
+  return { ...state, awarded: true };
+}
+
+function serializeMatch(match, sessionUser, usersMap = new Map()) {
+  const playerIds = (match.player_ids || []).map(Number);
+  const acceptedIds = (match.accepted_ids || []).map(Number);
+  const waitingFor = playerIds
+    .filter((userId) => !acceptedIds.includes(userId))
+    .map((userId) => ({
+      id: userId,
+      publicId: usersMap.get(userId) ? getPublicId(usersMap.get(userId)) : String(userId),
+      nickname: usersMap.get(userId)?.nickname || `Usuario ${userId}`,
+    }));
+
+  return {
+    id: Number(match.id),
+    hostId: Number(match.host_id),
+    playerIds,
+    acceptedIds,
+    waitingFor,
+    status: match.status,
+    mode: match.mode,
+    modeLabel: modeLabel(match.mode),
+    difficulty: match.difficulty,
+    state: match.state || {},
+    isMine: playerIds.includes(Number(sessionUser.id)),
+    createdAt: match.created_at,
+  };
+}
+
+async function getMatchForUser(matchId, userId) {
+  const matches = await supabaseRequest(`game_matches?select=*&id=${eq(matchId)}&limit=1`);
+  const match = matches[0];
+
+  if (!match || !(match.player_ids || []).map(Number).includes(Number(userId))) {
+    return null;
+  }
+
+  return match;
+}
+
+async function handleNotifications(request, response) {
+  try {
+    const sessionUser = await requireSessionUser(request, response);
+
+    if (!sessionUser) {
+      return;
+    }
+
+    const friendRows = await supabaseRequest(
+      `friendships?select=id,requester_id,created_at&addressee_id=${eq(sessionUser.id)}&status=eq.pending&order=created_at.desc`,
+    );
+    const friendUserIds = friendRows.map((item) => Number(item.requester_id));
+    const friendUsers = await getUsersMap(friendUserIds);
+    const friendInvites = friendRows.map((item) => {
+      const user = friendUsers.get(Number(item.requester_id));
+      return {
+        friendshipId: Number(item.id),
+        fromId: Number(item.requester_id),
+        nickname: user?.nickname || `Usuario ${item.requester_id}`,
+        publicId: user ? getPublicId(user) : String(item.requester_id),
+      };
+    });
+
+    const matches = await supabaseRequest("game_matches?select=*&status=eq.pending&order=created_at.desc&limit=80");
+    const myPendingMatches = matches.filter((match) => (
+      (match.player_ids || []).map(Number).includes(Number(sessionUser.id))
+    ));
+    const userIds = myPendingMatches.flatMap((match) => match.player_ids || []);
+    const usersMap = await getUsersMap(userIds);
+    const matchInvites = myPendingMatches
+      .filter((match) => !(match.accepted_ids || []).map(Number).includes(Number(sessionUser.id)))
+      .map((match) => serializeMatch(match, sessionUser, usersMap));
+    const waitingMatches = myPendingMatches
+      .filter((match) => (match.accepted_ids || []).map(Number).includes(Number(sessionUser.id)))
+      .map((match) => serializeMatch(match, sessionUser, usersMap));
+
+    send(response, 200, { ok: true, friendInvites, matchInvites, waitingMatches });
+  } catch (error) {
+    logSafeError("notifications", error);
+    if (isSchemaError(error, "game_matches")) {
+      sendSchemaError(response, "sistema de convites de partida");
+      return;
+    }
+    send(response, 500, { ok: false, message: "Nao foi possivel carregar notificacoes." });
+  }
+}
+
+async function handleMatchInvite(request, response) {
+  try {
+    const sessionUser = await requireSessionUser(request, response);
+
+    if (!sessionUser) {
+      return;
+    }
+
+    const body = await parseJsonBody(request);
+    const mode = String(body.mode || "solo");
+    const difficulty = String(body.difficulty || "normal");
+    const friendIds = [...new Set((body.friendIds || []).map(Number).filter(Boolean))];
+    const requiredFriends = mode === "teams" ? 3 : mode === "duel" ? 1 : 0;
+
+    if (!["duel", "teams"].includes(mode)) {
+      send(response, 400, { ok: false, message: "Convite de partida e usado apenas para 1x1 ou 2x2 com amigos." });
+      return;
+    }
+
+    if (friendIds.length !== requiredFriends) {
+      send(response, 400, {
+        ok: false,
+        message: mode === "teams" ? "Para 2x2, selecione exatamente 3 amigos." : "Para 1x1, selecione exatamente 1 amigo.",
+      });
+      return;
+    }
+
+    const acceptedFriends = await getAcceptedFriendIds(sessionUser.id);
+    const invalidFriend = friendIds.find((friendId) => !acceptedFriends.has(friendId));
+
+    if (invalidFriend) {
+      send(response, 403, { ok: false, message: "Selecione apenas amigos aceitos para convidar." });
+      return;
+    }
+
+    const playerIds = [Number(sessionUser.id), ...friendIds];
+    const created = await supabaseRequest("game_matches", {
+      method: "POST",
+      body: JSON.stringify({
+        host_id: sessionUser.id,
+        player_ids: playerIds,
+        accepted_ids: [Number(sessionUser.id)],
+        status: "pending",
+        mode,
+        difficulty,
+        state: {
+          message: "Aguardando amigos aceitarem o convite.",
+          messageType: "success",
+        },
+      }),
+    });
+    const usersMap = await getUsersMap(playerIds);
+
+    send(response, 201, {
+      ok: true,
+      message: "Convite de partida enviado. Aguardando os amigos aceitarem.",
+      match: serializeMatch(created[0], sessionUser, usersMap),
+    });
+  } catch (error) {
+    logSafeError("match-invite", error);
+    if (isSchemaError(error, "game_matches")) {
+      sendSchemaError(response, "sistema de convites de partida");
+      return;
+    }
+    send(response, 500, { ok: false, message: "Nao foi possivel criar o convite de partida." });
+  }
+}
+
+async function handleMatchAccept(request, response) {
+  try {
+    const sessionUser = await requireSessionUser(request, response);
+
+    if (!sessionUser) {
+      return;
+    }
+
+    const body = await parseJsonBody(request);
+    const match = await getMatchForUser(Number(body.matchId), sessionUser.id);
+
+    if (!match || match.status !== "pending") {
+      send(response, 404, { ok: false, message: "Convite de partida nao encontrado." });
+      return;
+    }
+
+    let acceptedIds = [...new Set([...(match.accepted_ids || []).map(Number), Number(sessionUser.id)])];
+    let status = "pending";
+    let state = match.state || {};
+
+    if ((match.player_ids || []).every((userId) => acceptedIds.includes(Number(userId)))) {
+      status = "active";
+      state = await createHangmanState({ ...match, accepted_ids: acceptedIds });
+    }
+
+    const updated = await supabaseRequest(`game_matches?id=${eq(match.id)}`, {
+      method: "PATCH",
+      body: JSON.stringify({
+        accepted_ids: acceptedIds,
+        status,
+        state,
+        updated_at: new Date().toISOString(),
+      }),
+    });
+    const usersMap = await getUsersMap(updated[0].player_ids || []);
+
+    send(response, 200, {
+      ok: true,
+      message: status === "active" ? "Todos aceitaram. Partida iniciada." : "Convite aceito. Aguardando os outros jogadores.",
+      match: serializeMatch(updated[0], sessionUser, usersMap),
+    });
+  } catch (error) {
+    logSafeError("match-accept", error);
+    send(response, 500, { ok: false, message: "Nao foi possivel aceitar o convite da partida." });
+  }
+}
+
+async function handleMatchGet(request, response, matchId) {
+  try {
+    const sessionUser = await requireSessionUser(request, response);
+
+    if (!sessionUser) {
+      return;
+    }
+
+    const match = await getMatchForUser(matchId, sessionUser.id);
+
+    if (!match) {
+      send(response, 404, { ok: false, message: "Partida nao encontrada." });
+      return;
+    }
+
+    const usersMap = await getUsersMap(match.player_ids || []);
+    send(response, 200, { ok: true, match: serializeMatch(match, sessionUser, usersMap) });
+  } catch (error) {
+    logSafeError("match-get", error);
+    send(response, 500, { ok: false, message: "Nao foi possivel carregar a partida." });
+  }
+}
+
+async function saveMatchState(match, state) {
+  const status = state.locked ? "finished" : "active";
+  const updated = await supabaseRequest(`game_matches?id=${eq(match.id)}`, {
+    method: "PATCH",
+    body: JSON.stringify({
+      status,
+      state,
+      updated_at: new Date().toISOString(),
+    }),
+  });
+
+  return updated[0];
+}
+
+async function handleMatchGuessLetter(request, response, matchId) {
+  try {
+    const sessionUser = await requireSessionUser(request, response);
+
+    if (!sessionUser) {
+      return;
+    }
+
+    const match = await getMatchForUser(matchId, sessionUser.id);
+
+    if (!match || match.status !== "active") {
+      send(response, 404, { ok: false, message: "Partida ativa nao encontrada." });
+      return;
+    }
+
+    const body = await parseJsonBody(request);
+    const letter = normalizeText(body.letter).slice(0, 1);
+    let state = match.state || {};
+
+    if (!letter || state.locked) {
+      send(response, 400, { ok: false, message: "Jogada invalida." });
+      return;
+    }
+
+    if (!userCanPlayTurn(state, sessionUser.id)) {
+      send(response, 403, { ok: false, message: "Aguarde sua vez." });
+      return;
+    }
+
+    if ((state.guessed || []).includes(letter)) {
+      send(response, 409, { ok: false, message: "Essa letra ja foi escolhida." });
+      return;
+    }
+
+    const active = currentMatchPlayer(state);
+    state.guessed = [...(state.guessed || []), letter];
+    const occurrences = [...state.normalized].filter((item) => item === letter).length;
+
+    if (occurrences) {
+      active.hits += occurrences;
+      active.streak += 1;
+      state.message = `${active.name} acertou ${occurrences} letra(s) e continua jogando.`;
+      state.messageType = "success";
+    } else {
+      active.misses += 1;
+      active.streak = 0;
+      state.message = `${active.name} errou a letra ${letter}. A vez passou.`;
+      state.messageType = "error";
+    }
+
+    const solved = [...state.normalized].every((item) => state.guessed.includes(item));
+
+    if (solved) {
+      const winner = [...state.players].sort((a, b) => b.hits - a.hits)[0];
+      state.locked = true;
+      state.winnerUserIds = winner.userIds || [];
+      state.message = `${winner.name} venceu com mais letras acertadas!`;
+      state.messageType = "success";
+    } else if (active.misses >= state.maxMisses) {
+      const winner = state.players[(state.turn + 1) % state.players.length];
+      state.locked = true;
+      state.winnerUserIds = winner.userIds || [];
+      state.message = `${active.name} foi enforcado. ${winner.name} venceu!`;
+      state.messageType = "error";
+    } else if (!occurrences) {
+      state.turn = (state.turn + 1) % state.players.length;
+    }
+
+    state = await awardMatchIfNeeded(match, state);
+    const updated = await saveMatchState(match, state);
+    const usersMap = await getUsersMap(updated.player_ids || []);
+    send(response, 200, { ok: true, match: serializeMatch(updated, sessionUser, usersMap) });
+  } catch (error) {
+    logSafeError("match-guess-letter", error);
+    send(response, 500, { ok: false, message: "Nao foi possivel registrar a letra." });
+  }
+}
+
+async function handleMatchGuessWord(request, response, matchId) {
+  try {
+    const sessionUser = await requireSessionUser(request, response);
+
+    if (!sessionUser) {
+      return;
+    }
+
+    const match = await getMatchForUser(matchId, sessionUser.id);
+
+    if (!match || match.status !== "active") {
+      send(response, 404, { ok: false, message: "Partida ativa nao encontrada." });
+      return;
+    }
+
+    const body = await parseJsonBody(request);
+    const guess = normalizeText(body.guess);
+    let state = match.state || {};
+    const active = currentMatchPlayer(state);
+
+    if (!userCanPlayTurn(state, sessionUser.id)) {
+      send(response, 403, { ok: false, message: "Aguarde sua vez." });
+      return;
+    }
+
+    if (active.streak < 3) {
+      send(response, 400, { ok: false, message: "A equipe precisa acertar 3 letras seguidas para chutar." });
+      return;
+    }
+
+    if (guess === state.normalized) {
+      state.locked = true;
+      state.winnerUserIds = active.userIds || [];
+      state.message = `${active.name} acertou a palavra e venceu!`;
+      state.messageType = "success";
+    } else {
+      const winner = state.players[(state.turn + 1) % state.players.length];
+      state.locked = true;
+      state.winnerUserIds = winner.userIds || [];
+      state.message = `${active.name} errou a palavra e perdeu automaticamente. ${winner.name} venceu!`;
+      state.messageType = "error";
+    }
+
+    state = await awardMatchIfNeeded(match, state);
+    const updated = await saveMatchState(match, state);
+    const usersMap = await getUsersMap(updated.player_ids || []);
+    send(response, 200, { ok: true, match: serializeMatch(updated, sessionUser, usersMap) });
+  } catch (error) {
+    logSafeError("match-guess-word", error);
+    send(response, 500, { ok: false, message: "Nao foi possivel chutar a palavra." });
+  }
+}
+
 async function handleChangePassword(request, response) {
   try {
     const token = request.headers.authorization?.replace(/^Bearer\s+/i, "");
@@ -755,6 +1272,42 @@ const server = http.createServer(async (request, response) => {
 
   if (request.method === "POST" && url.pathname === "/api/friends/accept") {
     handleFriendAccept(request, response);
+    return;
+  }
+
+  if (request.method === "GET" && url.pathname === "/api/notifications") {
+    handleNotifications(request, response);
+    return;
+  }
+
+  if (request.method === "POST" && url.pathname === "/api/matches/invite") {
+    handleMatchInvite(request, response);
+    return;
+  }
+
+  if (request.method === "POST" && url.pathname === "/api/matches/accept") {
+    handleMatchAccept(request, response);
+    return;
+  }
+
+  const matchGuessLetter = url.pathname.match(/^\/api\/matches\/(\d+)\/guess-letter$/);
+
+  if (request.method === "POST" && matchGuessLetter) {
+    handleMatchGuessLetter(request, response, Number(matchGuessLetter[1]));
+    return;
+  }
+
+  const matchGuessWord = url.pathname.match(/^\/api\/matches\/(\d+)\/guess-word$/);
+
+  if (request.method === "POST" && matchGuessWord) {
+    handleMatchGuessWord(request, response, Number(matchGuessWord[1]));
+    return;
+  }
+
+  const matchGet = url.pathname.match(/^\/api\/matches\/(\d+)$/);
+
+  if (request.method === "GET" && matchGet) {
+    handleMatchGet(request, response, Number(matchGet[1]));
     return;
   }
 
