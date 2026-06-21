@@ -347,7 +347,7 @@ const server = http.createServer(async (request, response) => {
     try {
       send(response, 200, {
         ok: true,
-        name: "Jogolandia",
+        name: "Jogarium",
         url: publicUrl,
         database: "supabase",
         users: await countUsers(),
@@ -402,5 +402,5 @@ const server = http.createServer(async (request, response) => {
 });
 
 server.listen(port, host, () => {
-  console.log(`Jogolandia em ${publicUrl}`);
+  console.log(`Jogarium em ${publicUrl}`);
 });

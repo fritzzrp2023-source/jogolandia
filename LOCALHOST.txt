@@ -1,9 +1,9 @@
-Como testar a Jogolandia antes da VPS
+Como testar a Jogarium antes da VPS
 
 Forma mais facil:
 
 1. Abra a pasta do projeto.
-2. De dois cliques em INICIAR-JOGOLANDIA.bat
+2. De dois cliques em INICIAR-JOGARIUM.bat
 3. O navegador vai abrir em:
 
 http://localhost:8080

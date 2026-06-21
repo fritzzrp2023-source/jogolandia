@@ -1,8 +1,8 @@
 @echo off
 cd /d "%~dp0"
-title Jogolandia - Servidor Local
+title Jogarium - Servidor Local
 echo.
-echo Iniciando a Jogolandia...
+echo Iniciando a Jogarium...
 echo.
 echo Abrindo http://localhost:8080
 echo Quando o site abrir, deixe esta janela aberta.

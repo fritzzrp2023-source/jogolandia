@@ -1,12 +1,12 @@
-Deploy gratuito da Jogolandia no Render
+Deploy gratuito da Jogarium no Render
 
 1. Coloque esta pasta em um repositorio no GitHub.
 2. Entre em https://dashboard.render.com
 3. Clique em New > Web Service.
-4. Conecte o repositorio da Jogolandia.
+4. Conecte o repositorio da Jogarium.
 5. Use estas configuracoes:
 
-Name: jogolandia
+Name: jogarium
 Language: Node
 Build Command: npm install
 Start Command: npm start
@@ -21,11 +21,11 @@ SUPABASE_SERVICE_ROLE_KEY=sua-chave-service-role
 
 7. Depois que o deploy terminar, copie a URL do Render, algo como:
 
-https://jogolandia.onrender.com
+https://jogarium.onrender.com
 
 8. Confira em Environment Variables:
 
-PUBLIC_URL=https://jogolandia.onrender.com
+PUBLIC_URL=https://jogarium.onrender.com
 SUPABASE_URL=https://seu-projeto.supabase.co
 SUPABASE_SERVICE_ROLE_KEY=sua-chave-service-role
 
@@ -33,7 +33,9 @@ SUPABASE_SERVICE_ROLE_KEY=sua-chave-service-role
 
 Importante sobre banco de dados:
 
-Nesta versao gratuita, o projeto usa SQLite local. Isso funciona para teste no Render,
-mas pode perder usuarios quando o servico reiniciar ou fizer novo deploy.
+O projeto usa Supabase como banco de dados. Por isso, mantenha estas variaveis no Render:
 
-Para producao de verdade, depois vamos trocar para PostgreSQL ou outro banco externo.
+SUPABASE_URL=https://seu-projeto.supabase.co
+SUPABASE_SERVICE_ROLE_KEY=sua-chave-service-role
+
+Sem essas duas variaveis, cadastro e login nao conseguem salvar nem buscar usuarios.

@@ -1,8 +1,8 @@
 @echo off
 cd /d "%~dp0"
-title Jogolandia - Teste Localhost
+title Jogarium - Teste Localhost
 echo.
-echo Testando a Jogolandia no localhost...
+echo Testando a Jogarium no localhost...
 echo.
 echo Endereco do site:
 echo http://localhost:8080
