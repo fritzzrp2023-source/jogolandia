@@ -2,11 +2,9 @@ const http = require("http");
 const crypto = require("crypto");
 const fs = require("fs");
 const path = require("path");
-const { DatabaseSync } = require("node:sqlite");
 
 const root = __dirname;
 const envPath = path.join(root, ".env");
-const dbPath = process.env.DB_PATH || path.join(root, "jogolandia.db");
 
 if (fs.existsSync(envPath)) {
   const lines = fs.readFileSync(envPath, "utf8").split(/\r?\n/);
@@ -23,6 +21,8 @@ if (fs.existsSync(envPath)) {
 const port = Number(process.env.PORT || 8080);
 const host = process.env.HOST || (process.env.RENDER ? "0.0.0.0" : "127.0.0.1");
 const publicUrl = process.env.PUBLIC_URL || `http://localhost:${port}`;
+const supabaseUrl = (process.env.SUPABASE_URL || "").replace(/\/$/, "");
+const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY || "";
 
 const types = {
   ".html": "text/html; charset=utf-8",
@@ -30,48 +30,6 @@ const types = {
   ".js": "text/javascript; charset=utf-8",
   ".png": "image/png",
 };
-
-const db = new DatabaseSync(dbPath);
-const hasUsersTable = db.prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'users'").get();
-const userColumns = hasUsersTable ? db.prepare("PRAGMA table_info(users)").all() : [];
-
-if (userColumns.some((column) => column.name === "email")) {
-  const suffix = Date.now();
-  const hasSessions = db.prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'sessions'").get();
-  db.exec(`ALTER TABLE users RENAME TO users_email_backup_${suffix};`);
-
-  if (hasSessions) {
-    db.exec(`ALTER TABLE sessions RENAME TO sessions_email_backup_${suffix};`);
-  }
-}
-
-if (userColumns.length > 0 && !userColumns.some((column) => column.name === "cpf")) {
-  const suffix = Date.now();
-  const hasSessions = db.prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'sessions'").get();
-  db.exec(`ALTER TABLE users RENAME TO users_nickname_backup_${suffix};`);
-
-  if (hasSessions) {
-    db.exec(`ALTER TABLE sessions RENAME TO sessions_nickname_backup_${suffix};`);
-  }
-}
-
-db.exec(`
-  CREATE TABLE IF NOT EXISTS users (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    nickname TEXT NOT NULL UNIQUE,
-    cpf TEXT NOT NULL UNIQUE,
-    password_hash TEXT NOT NULL,
-    salt TEXT NOT NULL,
-    created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
-  );
-
-  CREATE TABLE IF NOT EXISTS sessions (
-    token TEXT PRIMARY KEY,
-    user_id INTEGER NOT NULL,
-    expires_at INTEGER NOT NULL,
-    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
-  );
-`);
 
 function send(response, status, data) {
   response.writeHead(status, {
@@ -85,6 +43,44 @@ function send(response, status, data) {
 
 function logSafeError(context, error) {
   console.error(`[${context}] ${error.code || error.name || "Error"}: ${error.message}`);
+}
+
+function ensureSupabaseConfig() {
+  if (!supabaseUrl || !supabaseServiceKey) {
+    throw new Error("Supabase nao configurado no Render.");
+  }
+}
+
+async function supabaseRequest(pathname, options = {}) {
+  ensureSupabaseConfig();
+
+  const response = await fetch(`${supabaseUrl}/rest/v1/${pathname}`, {
+    ...options,
+    headers: {
+      apikey: supabaseServiceKey,
+      Authorization: `Bearer ${supabaseServiceKey}`,
+      "Content-Type": "application/json",
+      Prefer: "return=representation",
+      ...(options.headers || {}),
+    },
+  });
+
+  const text = await response.text();
+  const data = text ? JSON.parse(text) : null;
+
+  if (!response.ok) {
+    const message = data?.message || data?.hint || `Supabase respondeu ${response.status}`;
+    const error = new Error(message);
+    error.status = response.status;
+    error.details = data;
+    throw error;
+  }
+
+  return data;
+}
+
+function eq(value) {
+  return `eq.${encodeURIComponent(value)}`;
 }
 
 function readBody(request) {
@@ -146,30 +142,58 @@ function publicUser(user) {
 function createSession(userId) {
   const token = createToken();
   const expiresAt = Date.now() + 1000 * 60 * 60 * 24 * 7;
-
-  db.prepare("INSERT INTO sessions (token, user_id, expires_at) VALUES (?, ?, ?)").run(token, userId, expiresAt);
-  return token;
+  return { token, expiresAt };
 }
 
-function getSessionUser(token) {
+async function getSessionUser(token) {
   if (!token) {
     return null;
   }
 
-  const row = db
-    .prepare(
-      `SELECT users.id, users.nickname
-       FROM sessions
-       JOIN users ON users.id = sessions.user_id
-       WHERE sessions.token = ? AND sessions.expires_at > ?`,
-    )
-    .get(token, Date.now());
+  const sessions = await supabaseRequest(
+    `sessions?select=token,user_id,expires_at&token=${eq(token)}&expires_at=gt.${Date.now()}&limit=1`,
+  );
+  const session = sessions[0];
 
-  return row || null;
+  if (!session) {
+    return null;
+  }
+
+  const users = await supabaseRequest(`users?select=id,nickname&id=${eq(session.user_id)}&limit=1`);
+  return users[0] || null;
 }
 
-function countUsers() {
-  return db.prepare("SELECT count(*) AS total FROM users").get().total;
+async function countUsers() {
+  const response = await fetch(`${supabaseUrl}/rest/v1/users?select=id`, {
+    method: "HEAD",
+    headers: {
+      apikey: supabaseServiceKey,
+      Authorization: `Bearer ${supabaseServiceKey}`,
+      Prefer: "count=exact",
+    },
+  });
+
+  if (!response.ok) {
+    return null;
+  }
+
+  const range = response.headers.get("content-range") || "";
+  return Number(range.split("/")[1] || 0);
+}
+
+async function createAndStoreSession(userId) {
+  const session = createSession(userId);
+
+  await supabaseRequest("sessions", {
+    method: "POST",
+    body: JSON.stringify({
+      token: session.token,
+      user_id: userId,
+      expires_at: session.expiresAt,
+    }),
+  });
+
+  return session.token;
 }
 
 async function handleRegister(request, response) {
@@ -194,27 +218,36 @@ async function handleRegister(request, response) {
       return;
     }
 
-    if (db.prepare("SELECT id FROM users WHERE lower(nickname) = lower(?)").get(nickname)) {
+    const existingNickname = await supabaseRequest(`users?select=id&nickname=ilike.${encodeURIComponent(nickname)}&limit=1`);
+
+    if (existingNickname.length) {
       send(response, 409, { ok: false, message: "Este nickname ja esta em uso." });
       return;
     }
 
-    if (db.prepare("SELECT id FROM users WHERE cpf = ?").get(cpf)) {
+    const existingCpf = await supabaseRequest(`users?select=id&cpf=${eq(cpf)}&limit=1`);
+
+    if (existingCpf.length) {
       send(response, 409, { ok: false, message: "Este CPF ja esta cadastrado." });
       return;
     }
 
     const passwordData = hashPassword(password);
 
-    db.prepare(
-      `INSERT INTO users (nickname, cpf, password_hash, salt)
-       VALUES (?, ?, ?, ?)`,
-    ).run(nickname, cpf, passwordData.hash, passwordData.salt);
-    const user = db.prepare("SELECT id, nickname FROM users WHERE cpf = ?").get(cpf);
+    const createdUsers = await supabaseRequest("users", {
+      method: "POST",
+      body: JSON.stringify({
+        nickname,
+        cpf,
+        password_hash: passwordData.hash,
+        salt: passwordData.salt,
+      }),
+    });
+    const user = createdUsers[0];
     send(response, 201, {
       ok: true,
       message: "Conta criada. Entrando no painel...",
-      token: createSession(user.id),
+      token: await createAndStoreSession(user.id),
       user: publicUser(user),
     });
   } catch (error) {
@@ -228,7 +261,8 @@ async function handleLogin(request, response) {
     const body = await parseJsonBody(request);
     const cpf = normalizeCpf(body.cpf);
     const password = String(body.password || "");
-    const user = db.prepare("SELECT * FROM users WHERE cpf = ?").get(cpf);
+    const users = await supabaseRequest(`users?select=*&cpf=${eq(cpf)}&limit=1`);
+    const user = users[0];
 
     if (!user) {
       send(response, 404, { ok: false, message: "CPF nao cadastrado. Faca o cadastro primeiro." });
@@ -240,7 +274,7 @@ async function handleLogin(request, response) {
       return;
     }
 
-    send(response, 200, { ok: true, token: createSession(user.id), user: publicUser(user) });
+    send(response, 200, { ok: true, token: await createAndStoreSession(user.id), user: publicUser(user) });
   } catch (error) {
     logSafeError("login", error);
     send(response, 500, { ok: false, message: "Nao foi possivel entrar agora." });
@@ -249,7 +283,7 @@ async function handleLogin(request, response) {
 
 async function handleSession(request, response) {
   const token = request.headers.authorization?.replace(/^Bearer\s+/i, "");
-  const user = getSessionUser(token);
+  const user = await getSessionUser(token);
 
   if (!user) {
     send(response, 401, { ok: false, message: "Sessao expirada." });
@@ -262,7 +296,7 @@ async function handleSession(request, response) {
 async function handleChangePassword(request, response) {
   try {
     const token = request.headers.authorization?.replace(/^Bearer\s+/i, "");
-    const sessionUser = getSessionUser(token);
+    const sessionUser = await getSessionUser(token);
 
     if (!sessionUser) {
       send(response, 401, { ok: false, message: "Sessao expirada. Entre novamente." });
@@ -278,7 +312,8 @@ async function handleChangePassword(request, response) {
       return;
     }
 
-    const user = db.prepare("SELECT * FROM users WHERE id = ?").get(sessionUser.id);
+    const users = await supabaseRequest(`users?select=*&id=${eq(sessionUser.id)}&limit=1`);
+    const user = users[0];
 
     if (!user || !verifyPassword(currentPassword, user.salt, user.password_hash)) {
       send(response, 401, { ok: false, message: "Senha atual incorreta." });
@@ -286,11 +321,13 @@ async function handleChangePassword(request, response) {
     }
 
     const passwordData = hashPassword(newPassword);
-    db.prepare("UPDATE users SET password_hash = ?, salt = ? WHERE id = ?").run(
-      passwordData.hash,
-      passwordData.salt,
-      user.id,
-    );
+    await supabaseRequest(`users?id=${eq(user.id)}`, {
+      method: "PATCH",
+      body: JSON.stringify({
+        password_hash: passwordData.hash,
+        salt: passwordData.salt,
+      }),
+    });
     send(response, 200, { ok: true, message: "Senha alterada com sucesso." });
   } catch (error) {
     logSafeError("change-password", error);
@@ -298,7 +335,7 @@ async function handleChangePassword(request, response) {
   }
 }
 
-const server = http.createServer((request, response) => {
+const server = http.createServer(async (request, response) => {
   if (request.method === "OPTIONS") {
     send(response, 200, { ok: true });
     return;
@@ -307,13 +344,17 @@ const server = http.createServer((request, response) => {
   const url = new URL(request.url, `http://${request.headers.host}`);
 
   if (request.method === "GET" && url.pathname === "/api/health") {
-    send(response, 200, {
-      ok: true,
-      name: "Jogolandia",
-      url: publicUrl,
-      database: path.basename(dbPath),
-      users: countUsers(),
-    });
+    try {
+      send(response, 200, {
+        ok: true,
+        name: "Jogolandia",
+        url: publicUrl,
+        database: "supabase",
+        users: await countUsers(),
+      });
+    } catch (error) {
+      send(response, 500, { ok: false, message: error.message });
+    }
     return;
   }
 

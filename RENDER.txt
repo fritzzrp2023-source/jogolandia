@@ -16,6 +16,8 @@ Health Check Path: /api/health
 
 HOST=0.0.0.0
 PUBLIC_URL=https://sua-url.onrender.com
+SUPABASE_URL=https://seu-projeto.supabase.co
+SUPABASE_SERVICE_ROLE_KEY=sua-chave-service-role
 
 7. Depois que o deploy terminar, copie a URL do Render, algo como:
 
@@ -24,6 +26,8 @@ https://jogolandia.onrender.com
 8. Confira em Environment Variables:
 
 PUBLIC_URL=https://jogolandia.onrender.com
+SUPABASE_URL=https://seu-projeto.supabase.co
+SUPABASE_SERVICE_ROLE_KEY=sua-chave-service-role
 
 9. Clique em Manual Deploy > Deploy latest commit.
 
