@@ -15,18 +15,13 @@ Health Check Path: /api/health
 6. Em Environment Variables, coloque:
 
 HOST=0.0.0.0
-SMTP_HOST=smtp.gmail.com
-SMTP_PORT=587
-SMTP_SECURE=false
-SMTP_USER=seu-gmail@gmail.com
-SMTP_PASS=sua-senha-de-app-do-google
-SMTP_FROM=seu-gmail@gmail.com
+PUBLIC_URL=https://sua-url.onrender.com
 
 7. Depois que o deploy terminar, copie a URL do Render, algo como:
 
 https://jogolandia.onrender.com
 
-8. Volte em Environment Variables e adicione:
+8. Confira em Environment Variables:
 
 PUBLIC_URL=https://jogolandia.onrender.com
 

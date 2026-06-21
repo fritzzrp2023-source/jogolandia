@@ -265,6 +265,28 @@ p {
   gap: 16px;
 }
 
+.account-panel {
+  display: grid;
+  grid-template-columns: minmax(220px, 0.8fr) minmax(320px, 1.2fr);
+  gap: 20px;
+  align-items: start;
+  margin-top: 22px;
+  padding: 20px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: rgba(13, 22, 33, 0.86);
+}
+
+.account-panel h2 {
+  margin-bottom: 0;
+  font-size: 1.5rem;
+}
+
+.password-form {
+  display: grid;
+  gap: 14px;
+}
+
 .game-card {
   min-height: 260px;
   display: grid;
@@ -335,6 +357,10 @@ p {
 
   .games-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .account-panel {
+    grid-template-columns: 1fr;
   }
 }
 

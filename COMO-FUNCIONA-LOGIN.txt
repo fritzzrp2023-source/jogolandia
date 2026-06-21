@@ -1,0 +1,20 @@
+Login atual da Jogolandia
+
+O cadastro usa somente:
+
+- Nickname
+- Senha
+- Confirmar senha
+
+O login usa:
+
+- Nickname
+- Senha
+
+Nao existe mais verificacao por email nem redefinicao por email.
+
+Depois de entrar no painel, o usuario pode alterar a senha informando:
+
+- Senha atual
+- Nova senha
+- Confirmar nova senha

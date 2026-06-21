@@ -8,12 +8,8 @@ const toast = document.querySelector("#toast");
 const forms = {
   login: document.querySelector("#loginForm"),
   register: document.querySelector("#registerForm"),
-  reset: document.querySelector("#resetForm"),
-  newPassword: document.querySelector("#newPasswordForm"),
+  changePassword: document.querySelector("#changePasswordForm"),
 };
-
-const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/i;
-let activeResetToken = null;
 
 function setFieldState(input, state, message) {
   const field = input.closest(".field");
@@ -30,23 +26,6 @@ function setFieldState(input, state, message) {
 function setMessage(element, text, type = "") {
   element.textContent = text;
   element.className = `form-message ${type}`.trim();
-}
-
-function validateEmail(input) {
-  const email = input.value.trim();
-
-  if (!email) {
-    setFieldState(input, "", "");
-    return false;
-  }
-
-  if (!emailPattern.test(email)) {
-    setFieldState(input, "invalid", "Email invalido.");
-    return false;
-  }
-
-  setFieldState(input, "valid", "Email valido.");
-  return true;
 }
 
 function validateNickname(input) {
@@ -110,10 +89,6 @@ function showForm(name) {
   });
 }
 
-function makeToken() {
-  return crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random()}`;
-}
-
 function showToast(html) {
   toast.innerHTML = html;
   toast.hidden = false;
@@ -172,36 +147,6 @@ function renderAuth() {
 }
 
 async function checkHashAction() {
-  const hash = location.hash.replace("#", "");
-
-  if (hash.startsWith("verify=")) {
-    const token = hash.replace("verify=", "");
-
-    try {
-      const result = await apiRequest("/api/verify-email", {
-        method: "POST",
-        body: { token },
-      });
-      showForm("login");
-      renderAuth();
-      setMessage(document.querySelector("#loginMessage"), result.message, "success");
-      history.replaceState(null, "", location.pathname);
-    } catch (error) {
-      showForm("login");
-      renderAuth();
-      setMessage(document.querySelector("#loginMessage"), error.message, "error");
-    }
-
-    return true;
-  }
-
-  if (hash.startsWith("reset=")) {
-    activeResetToken = hash.replace("reset=", "");
-    showForm("newPassword");
-    renderAuth();
-    return true;
-  }
-
   return false;
 }
 
@@ -226,20 +171,14 @@ document.querySelectorAll("[data-auth-tab]").forEach((button) => {
   button.addEventListener("click", () => showForm(button.dataset.authTab));
 });
 
-document.querySelector("#showReset").addEventListener("click", () => showForm("reset"));
-document.querySelector("#backToLogin").addEventListener("click", () => showForm("login"));
-
 document.querySelector("#logoutButton").addEventListener("click", () => {
   localStorage.removeItem(SESSION_KEY);
   renderAuth();
   showForm("login");
 });
 
-document.querySelectorAll('input[type="email"]').forEach((input) => {
-  input.addEventListener("input", () => validateEmail(input));
-});
-
 document.querySelector("#nickname").addEventListener("input", (event) => validateNickname(event.target));
+document.querySelector("#loginNickname").addEventListener("input", (event) => validateNickname(event.target));
 
 ["#registerPassword", "#confirmPassword"].forEach((selector) => {
   document.querySelector(selector).addEventListener("input", () => {
@@ -247,9 +186,9 @@ document.querySelector("#nickname").addEventListener("input", (event) => validat
   });
 });
 
-["#newPassword", "#newPasswordConfirm"].forEach((selector) => {
+["#accountNewPassword", "#accountNewPasswordConfirm"].forEach((selector) => {
   document.querySelector(selector).addEventListener("input", () => {
-    validatePasswordPair(document.querySelector("#newPassword"), document.querySelector("#newPasswordConfirm"));
+    validatePasswordPair(document.querySelector("#accountNewPassword"), document.querySelector("#accountNewPasswordConfirm"));
   });
 });
 
@@ -257,37 +196,33 @@ forms.register.addEventListener("submit", async (event) => {
   event.preventDefault();
 
   const nickname = document.querySelector("#nickname");
-  const email = document.querySelector("#registerEmail");
   const password = document.querySelector("#registerPassword");
   const confirmPassword = document.querySelector("#confirmPassword");
   const message = document.querySelector("#registerMessage");
 
   const nicknameOk = validateNickname(nickname);
-  const emailOk = validateEmail(email);
   const passwordOk = validatePasswordPair(password, confirmPassword);
-  const isValid = nicknameOk && emailOk && passwordOk;
+  const isValid = nicknameOk && passwordOk;
 
   if (!isValid) {
     setMessage(message, "Confira os campos marcados antes de continuar.", "error");
     return;
   }
 
-  setMessage(message, "Conta criada. Enviando autenticacao por email...", "success");
+  setMessage(message, "Criando conta...", "success");
 
   try {
-    const registeredEmail = email.value.trim();
     const result = await apiRequest("/api/register", {
       method: "POST",
       body: {
         nickname: nickname.value.trim(),
-        email: registeredEmail,
         password: password.value,
       },
     });
     forms.register.reset();
     clearFieldStates(forms.register);
     setMessage(message, result.message, "success");
-    showToast(`Email de autenticacao enviado para <strong>${registeredEmail}</strong>.`);
+    showToast("Conta criada. Use seu nickname e senha para entrar.");
   } catch (error) {
     setMessage(message, error.message, "error");
   }
@@ -296,12 +231,12 @@ forms.register.addEventListener("submit", async (event) => {
 forms.login.addEventListener("submit", async (event) => {
   event.preventDefault();
 
-  const email = document.querySelector("#loginEmail");
+  const nickname = document.querySelector("#loginNickname");
   const password = document.querySelector("#loginPassword");
   const message = document.querySelector("#loginMessage");
 
-  if (!validateEmail(email) || !password.value) {
-    setMessage(message, "Digite email e senha para entrar.", "error");
+  if (!validateNickname(nickname) || !password.value) {
+    setMessage(message, "Digite nickname e senha para entrar.", "error");
     return;
   }
 
@@ -309,7 +244,7 @@ forms.login.addEventListener("submit", async (event) => {
     const result = await apiRequest("/api/login", {
       method: "POST",
       body: {
-        email: email.value.trim(),
+        nickname: nickname.value.trim(),
         password: password.value,
       },
     });
@@ -320,55 +255,30 @@ forms.login.addEventListener("submit", async (event) => {
   }
 });
 
-forms.reset.addEventListener("submit", async (event) => {
+forms.changePassword.addEventListener("submit", async (event) => {
   event.preventDefault();
 
-  const email = document.querySelector("#resetEmail");
-  const message = document.querySelector("#resetMessage");
-
-  if (!validateEmail(email)) {
-    setMessage(message, "Digite um email valido.", "error");
-    return;
-  }
-
-  setMessage(message, "Enviando link de redefinicao...", "success");
-
-  try {
-    const result = await apiRequest("/api/request-reset", {
-      method: "POST",
-      body: { email: email.value.trim() },
-    });
-    setMessage(message, result.message, "success");
-    showToast(`Link de redefinicao enviado para <strong>${email.value.trim()}</strong>.`);
-  } catch (error) {
-    setMessage(message, error.message, "error");
-  }
-});
-
-forms.newPassword.addEventListener("submit", async (event) => {
-  event.preventDefault();
-
-  const password = document.querySelector("#newPassword");
-  const confirmPassword = document.querySelector("#newPasswordConfirm");
-  const message = document.querySelector("#newPasswordMessage");
+  const currentPassword = document.querySelector("#currentPassword");
+  const password = document.querySelector("#accountNewPassword");
+  const confirmPassword = document.querySelector("#accountNewPasswordConfirm");
+  const message = document.querySelector("#changePasswordMessage");
 
   if (!validatePasswordPair(password, confirmPassword)) {
-    setMessage(message, "As senhas precisam ser iguais.", "error");
+    setMessage(message, "A nova senha e a confirmacao precisam ser iguais.", "error");
     return;
   }
 
   try {
-    const result = await apiRequest("/api/reset-password", {
+    const result = await apiRequest("/api/change-password", {
       method: "POST",
       body: {
-        token: activeResetToken,
-        password: password.value,
+        currentPassword: currentPassword.value,
+        newPassword: password.value,
       },
     });
-    forms.newPassword.reset();
-    setMessage(document.querySelector("#loginMessage"), result.message, "success");
-    history.replaceState(null, "", location.pathname);
-    showForm("login");
+    forms.changePassword.reset();
+    clearFieldStates(forms.changePassword);
+    setMessage(message, result.message, "success");
   } catch (error) {
     setMessage(message, error.message, "error");
   }

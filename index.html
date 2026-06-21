@@ -30,8 +30,8 @@
 
           <form class="auth-form active" id="loginForm" novalidate>
             <label class="field">
-              <span>Email</span>
-              <input id="loginEmail" type="email" autocomplete="email" placeholder="voce@email.com" required />
+              <span>Nickname</span>
+              <input id="loginNickname" type="text" autocomplete="username" placeholder="Seu nome no jogo" minlength="3" maxlength="18" required />
               <small class="field-message"></small>
             </label>
 
@@ -42,7 +42,6 @@
             </label>
 
             <button class="primary-button" type="submit">Entrar</button>
-            <button class="link-button" id="showReset" type="button">Esqueci minha senha</button>
             <p class="form-message" id="loginMessage" role="status"></p>
           </form>
 
@@ -50,12 +49,6 @@
             <label class="field">
               <span>Nickname</span>
               <input id="nickname" type="text" autocomplete="nickname" placeholder="Seu nome no jogo" minlength="3" maxlength="18" required />
-              <small class="field-message"></small>
-            </label>
-
-            <label class="field">
-              <span>Email</span>
-              <input id="registerEmail" type="email" autocomplete="email" placeholder="voce@email.com" required />
               <small class="field-message"></small>
             </label>
 
@@ -73,34 +66,6 @@
 
             <button class="primary-button" type="submit">Criar conta</button>
             <p class="form-message" id="registerMessage" role="status"></p>
-          </form>
-
-          <form class="auth-form" id="resetForm" novalidate>
-            <h2>Redefinir senha</h2>
-            <label class="field">
-              <span>Email cadastrado</span>
-              <input id="resetEmail" type="email" autocomplete="email" placeholder="voce@email.com" required />
-              <small class="field-message"></small>
-            </label>
-            <button class="primary-button" type="submit">Enviar link</button>
-            <button class="link-button" id="backToLogin" type="button">Voltar ao login</button>
-            <p class="form-message" id="resetMessage" role="status"></p>
-          </form>
-
-          <form class="auth-form" id="newPasswordForm" novalidate>
-            <h2>Nova senha</h2>
-            <label class="field">
-              <span>Nova senha</span>
-              <input id="newPassword" type="password" autocomplete="new-password" placeholder="Nova senha" minlength="6" required />
-              <small class="field-message"></small>
-            </label>
-            <label class="field">
-              <span>Confirmar nova senha</span>
-              <input id="newPasswordConfirm" type="password" autocomplete="new-password" placeholder="Repita a nova senha" minlength="6" required />
-              <small class="field-message"></small>
-            </label>
-            <button class="primary-button" type="submit">Salvar senha</button>
-            <p class="form-message" id="newPasswordMessage" role="status"></p>
           </form>
         </section>
       </section>
@@ -143,6 +108,32 @@
             <button type="button">Em breve</button>
           </article>
         </div>
+
+        <section class="account-panel" aria-label="Configuracoes da conta">
+          <div>
+            <p class="eyebrow">Conta</p>
+            <h2>Alterar senha</h2>
+          </div>
+          <form class="password-form" id="changePasswordForm" novalidate>
+            <label class="field">
+              <span>Senha atual</span>
+              <input id="currentPassword" type="password" autocomplete="current-password" placeholder="Digite sua senha atual" required />
+              <small class="field-message"></small>
+            </label>
+            <label class="field">
+              <span>Nova senha</span>
+              <input id="accountNewPassword" type="password" autocomplete="new-password" placeholder="Nova senha" minlength="6" required />
+              <small class="field-message"></small>
+            </label>
+            <label class="field">
+              <span>Confirmar nova senha</span>
+              <input id="accountNewPasswordConfirm" type="password" autocomplete="new-password" placeholder="Repita a nova senha" minlength="6" required />
+              <small class="field-message"></small>
+            </label>
+            <button class="primary-button" type="submit">Salvar senha</button>
+            <p class="form-message" id="changePasswordMessage" role="status"></p>
+          </form>
+        </section>
       </section>
     </main>
 
