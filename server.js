@@ -220,8 +220,13 @@ async function handleLogin(request, response) {
     const password = String(body.password || "");
     const user = db.prepare("SELECT * FROM users WHERE cpf = ?").get(cpf);
 
-    if (!user || !verifyPassword(password, user.salt, user.password_hash)) {
-      send(response, 401, { ok: false, message: "CPF ou senha incorretos." });
+    if (!user) {
+      send(response, 404, { ok: false, message: "CPF nao cadastrado. Faca o cadastro primeiro." });
+      return;
+    }
+
+    if (!verifyPassword(password, user.salt, user.password_hash)) {
+      send(response, 401, { ok: false, message: "Senha incorreta." });
       return;
     }
 

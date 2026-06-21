@@ -150,11 +150,18 @@ async function apiRequest(path, options = {}) {
     headers.Authorization = `Bearer ${token}`;
   }
 
-  const response = await fetch(`${API_BASE}${path}`, {
-    ...options,
-    headers,
-    body: options.body ? JSON.stringify(options.body) : undefined,
-  });
+  let response;
+
+  try {
+    response = await fetch(`${API_BASE}${path}`, {
+      ...options,
+      headers,
+      body: options.body ? JSON.stringify(options.body) : undefined,
+    });
+  } catch (error) {
+    throw new Error("Nao foi possivel falar com o servidor. Tente recarregar a pagina.");
+  }
+
   const result = await response.json().catch(() => ({}));
 
   if (!response.ok || !result.ok) {
@@ -258,6 +265,7 @@ forms.register.addEventListener("submit", async (event) => {
   setMessage(message, "Criando conta...", "success");
 
   try {
+    const registeredCpf = cpf.value;
     const result = await apiRequest("/api/register", {
       method: "POST",
       body: {
@@ -269,7 +277,11 @@ forms.register.addEventListener("submit", async (event) => {
     forms.register.reset();
     clearFieldStates(forms.register);
     setMessage(message, result.message, "success");
-    showToast("Conta criada. Use seu nickname e senha para entrar.");
+    document.querySelector("#loginCpf").value = registeredCpf;
+    validateCpf(document.querySelector("#loginCpf"));
+    showForm("login");
+    setMessage(document.querySelector("#loginMessage"), "Conta criada. Entre com a senha cadastrada.", "success");
+    showToast("Conta criada. Use seu CPF e senha para entrar.");
   } catch (error) {
     setMessage(message, error.message, "error");
   }
@@ -286,6 +298,8 @@ forms.login.addEventListener("submit", async (event) => {
     setMessage(message, "Digite CPF e senha para entrar.", "error");
     return;
   }
+
+  setMessage(message, "Entrando...", "success");
 
   try {
     const result = await apiRequest("/api/login", {
