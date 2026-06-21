@@ -93,6 +93,7 @@
             <h1 id="dashboardTitle">Jogo da Forca</h1>
           </div>
           <div class="dashboard-actions">
+            <button class="nav-button" id="rankingButton" type="button">Ranking</button>
             <button class="nav-button" id="friendsButton" type="button">Amigos</button>
             <div class="user-box">
               <button class="user-menu-button" id="userMenuButton" type="button" aria-expanded="false">
@@ -333,11 +334,25 @@
             </div>
           </div>
         </section>
+
+        <section class="panel-view" id="rankingView" hidden>
+          <div class="page-panel">
+            <div class="page-heading">
+              <div>
+                <p class="eyebrow">Ranking</p>
+                <h2>Melhores jogadores</h2>
+              </div>
+              <button class="link-button" id="backToGamesFromRanking" type="button">Voltar ao jogo</button>
+            </div>
+
+            <div class="ranking-list" id="rankingList"></div>
+          </div>
+        </section>
       </section>
     </main>
 
     <div class="toast" id="toast" hidden></div>
 
-    <script src="app.js?v=20260621-8"></script>
+    <script src="app.js?v=20260621-9"></script>
   </body>
 </html>

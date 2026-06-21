@@ -491,6 +491,104 @@ async function handleFriendAccept(request, response) {
   }
 }
 
+function calculateWinPoints({ mode, difficulty }) {
+  const difficultyPoints = {
+    easy: 10,
+    normal: 20,
+    hard: 35,
+  };
+  const modeBonus = {
+    solo: 0,
+    duel: 8,
+    teams: 12,
+  };
+
+  return (difficultyPoints[difficulty] || difficultyPoints.normal) + (modeBonus[mode] || 0);
+}
+
+async function handleScoreWin(request, response) {
+  try {
+    const sessionUser = await requireSessionUser(request, response);
+
+    if (!sessionUser) {
+      return;
+    }
+
+    const body = await parseJsonBody(request);
+    const game = String(body.game || "hangman");
+    const mode = String(body.mode || "solo");
+    const difficulty = String(body.difficulty || "normal");
+    const pointsEarned = calculateWinPoints({ mode, difficulty });
+
+    const existing = await supabaseRequest(`user_scores?select=*&user_id=${eq(sessionUser.id)}&limit=1`);
+    let score;
+
+    if (existing.length) {
+      const current = existing[0];
+      const updated = await supabaseRequest(`user_scores?user_id=${eq(sessionUser.id)}`, {
+        method: "PATCH",
+        body: JSON.stringify({
+          points: Number(current.points || 0) + pointsEarned,
+          wins: Number(current.wins || 0) + 1,
+          last_game: game,
+          updated_at: new Date().toISOString(),
+        }),
+      });
+      score = updated[0];
+    } else {
+      const created = await supabaseRequest("user_scores", {
+        method: "POST",
+        body: JSON.stringify({
+          user_id: sessionUser.id,
+          points: pointsEarned,
+          wins: 1,
+          last_game: game,
+        }),
+      });
+      score = created[0];
+    }
+
+    send(response, 200, { ok: true, pointsEarned, score });
+  } catch (error) {
+    logSafeError("score-win", error);
+    send(response, 500, { ok: false, message: "Nao foi possivel salvar a pontuacao. Confira a tabela user_scores no Supabase." });
+  }
+}
+
+async function handleRanking(request, response) {
+  try {
+    const sessionUser = await requireSessionUser(request, response);
+
+    if (!sessionUser) {
+      return;
+    }
+
+    const scores = await supabaseRequest("user_scores?select=user_id,points,wins&order=points.desc,wins.desc&limit=20");
+    const userIds = scores.map((score) => Number(score.user_id));
+
+    if (!userIds.length) {
+      send(response, 200, { ok: true, ranking: [] });
+      return;
+    }
+
+    const users = await supabaseRequest(`users?select=id,nickname&id=in.(${userIds.join(",")})`);
+    const ranking = scores.map((score) => {
+      const user = users.find((item) => Number(item.id) === Number(score.user_id));
+      return {
+        userId: Number(score.user_id),
+        nickname: user?.nickname || `Usuario ${score.user_id}`,
+        points: Number(score.points || 0),
+        wins: Number(score.wins || 0),
+      };
+    });
+
+    send(response, 200, { ok: true, ranking });
+  } catch (error) {
+    logSafeError("ranking", error);
+    send(response, 500, { ok: false, message: "Nao foi possivel carregar o ranking. Confira a tabela user_scores no Supabase." });
+  }
+}
+
 async function handleChangePassword(request, response) {
   try {
     const token = request.headers.authorization?.replace(/^Bearer\s+/i, "");
@@ -593,6 +691,16 @@ const server = http.createServer(async (request, response) => {
 
   if (request.method === "POST" && url.pathname === "/api/friends/accept") {
     handleFriendAccept(request, response);
+    return;
+  }
+
+  if (request.method === "POST" && url.pathname === "/api/score/win") {
+    handleScoreWin(request, response);
+    return;
+  }
+
+  if (request.method === "GET" && url.pathname === "/api/ranking") {
+    handleRanking(request, response);
     return;
   }
 

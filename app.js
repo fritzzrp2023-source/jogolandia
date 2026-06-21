@@ -14,6 +14,7 @@ const views = {
   games: document.querySelector("#gamesView"),
   account: document.querySelector("#accountView"),
   friends: document.querySelector("#friendsView"),
+  ranking: document.querySelector("#rankingView"),
 };
 
 const forms = {
@@ -39,6 +40,7 @@ const difficultyRules = {
 let currentUser = null;
 let hangman = null;
 let setupFriends = [];
+let lastAwardedMatchId = null;
 
 function onlyDigits(value) {
   return String(value || "").replace(/\D/g, "");
@@ -218,6 +220,7 @@ function showPanel(name) {
     games: ["Forca", "Jogo da Forca"],
     account: ["Minha conta", "Dados da conta"],
     friends: ["Amigos", "Convites e jogadores online"],
+    ranking: ["Ranking", "Melhores jogadores"],
   };
   dashboardEyebrow.textContent = titles[name][0];
   dashboardTitle.textContent = titles[name][1];
@@ -259,6 +262,33 @@ async function loadFriends() {
         </div>
         ${friend.canAccept ? `<button type="button" data-accept-friend="${friend.friendshipId}">Aceitar</button>` : ""}
         ${friend.status === "accepted" ? `<button type="button" ${friend.online ? "" : "disabled"}>Convidar para jogar</button>` : ""}
+      </article>
+    `).join("");
+  } catch (error) {
+    list.innerHTML = `<p class="form-message error">${error.message}</p>`;
+  }
+}
+
+async function loadRanking() {
+  const list = document.querySelector("#rankingList");
+  list.innerHTML = '<p class="muted-label">Carregando ranking...</p>';
+
+  try {
+    const result = await apiRequest("/api/ranking", { method: "GET" });
+
+    if (!result.ranking.length) {
+      list.innerHTML = '<p class="muted-label">Ainda nao ha pontuacao. Venca uma partida para aparecer aqui.</p>';
+      return;
+    }
+
+    list.innerHTML = result.ranking.map((item, index) => `
+      <article class="ranking-item ${Number(item.userId) === Number(currentUser?.id) ? "current-player" : ""}">
+        <span class="ranking-position">${index + 1}</span>
+        <div>
+          <strong>${item.nickname}</strong>
+          <small>ID ${item.userId} • ${item.wins} vitoria(s)</small>
+        </div>
+        <strong>${item.points} pts</strong>
       </article>
     `).join("");
   } catch (error) {
@@ -339,9 +369,15 @@ document.querySelector("#friendsButton").addEventListener("click", async () => {
   await loadFriends();
 });
 
+document.querySelector("#rankingButton").addEventListener("click", async () => {
+  showPanel("ranking");
+  await loadRanking();
+});
+
 document.querySelector("#backToGamesFromMenu").addEventListener("click", () => showPanel("games"));
 document.querySelector("#backToGamesFromAccount").addEventListener("click", () => showPanel("games"));
 document.querySelector("#backToGamesFromFriends").addEventListener("click", () => showPanel("games"));
+document.querySelector("#backToGamesFromRanking").addEventListener("click", () => showPanel("games"));
 
 document.addEventListener("click", (event) => {
   if (!userMenu.hidden && !event.target.closest(".user-box")) {
@@ -537,6 +573,7 @@ function startHangman(config = getSelectedHangmanConfig()) {
   const dictionary = hangmanWords[config.difficulty] || hangmanWords.normal;
   const word = dictionary[Math.floor(Math.random() * dictionary.length)];
   hangman = {
+    matchId: `${Date.now()}-${Math.random().toString(16).slice(2)}`,
     mode: config.mode,
     difficulty: config.difficulty,
     invitedFriends: config.invitedFriends || [],
@@ -604,6 +641,39 @@ function finishHangman(message, type = "success") {
   renderHangman();
 }
 
+async function awardHangmanWin(winner, reason) {
+  if (!winner || winner.bot || lastAwardedMatchId === hangman.matchId) {
+    return;
+  }
+
+  const winnerBelongsToCurrentUser = winner.name === currentUser.nickname || winner.name.includes(currentUser.nickname);
+
+  if (!winnerBelongsToCurrentUser) {
+    return;
+  }
+
+  lastAwardedMatchId = hangman.matchId;
+
+  try {
+    const result = await apiRequest("/api/score/win", {
+      method: "POST",
+      body: {
+        game: "hangman",
+        mode: hangman.mode,
+        difficulty: hangman.difficulty,
+        reason,
+      },
+    });
+    setMessage(
+      document.querySelector("#hangmanMessage"),
+      `${document.querySelector("#hangmanMessage").textContent} +${result.pointsEarned} pontos. Total: ${result.score.points}.`,
+      "success",
+    );
+  } catch (error) {
+    showToast(`Partida vencida, mas a pontuacao nao foi salva: ${error.message}`);
+  }
+}
+
 function guessLetter(letter) {
   if (hangman.locked || hangman.guessed.has(letter)) return;
   const active = hangman.players[hangman.turn];
@@ -623,10 +693,13 @@ function guessLetter(letter) {
   if (solved) {
     const winner = [...hangman.players].sort((a, b) => b.hits - a.hits)[0];
     finishHangman(`${winner.name} venceu com mais letras acertadas!`);
+    awardHangmanWin(winner, "word_completed");
     return;
   }
   if (active.misses >= hangman.maxMisses) {
-    finishHangman(`${active.name} foi enforcado. ${hangman.players[(hangman.turn + 1) % hangman.players.length].name} venceu!`, "error");
+    const winner = hangman.players[(hangman.turn + 1) % hangman.players.length];
+    finishHangman(`${active.name} foi enforcado. ${winner.name} venceu!`, "error");
+    awardHangmanWin(winner, "opponent_hanged");
     return;
   }
   if (occurrences) {
@@ -684,8 +757,11 @@ document.querySelector("#guessWordButton").addEventListener("click", () => {
   }
   if (guess === hangman.normalized) {
     finishHangman(`${active.name} acertou a palavra e venceu!`);
+    awardHangmanWin(active, "word_guess");
   } else {
-    finishHangman(`${active.name} errou a palavra e perdeu automaticamente.`, "error");
+    const winner = hangman.players[(hangman.turn + 1) % hangman.players.length];
+    finishHangman(`${active.name} errou a palavra e perdeu automaticamente. ${winner.name} venceu!`, "error");
+    awardHangmanWin(winner, "opponent_missed_word");
   }
 });
 

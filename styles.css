@@ -581,6 +581,45 @@ p {
   font-weight: 800;
 }
 
+.ranking-list {
+  display: grid;
+  gap: 12px;
+  margin-top: 22px;
+}
+
+.ranking-item {
+  display: grid;
+  grid-template-columns: 54px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 14px;
+  padding: 16px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.055);
+}
+
+.ranking-item.current-player {
+  border-color: rgba(255, 207, 90, 0.72);
+  background: rgba(255, 207, 90, 0.12);
+}
+
+.ranking-position {
+  width: 42px;
+  height: 42px;
+  display: grid;
+  place-items: center;
+  border-radius: 8px;
+  background: linear-gradient(135deg, #ffcf5a, #f05d5e);
+  color: #111925;
+  font-weight: 950;
+}
+
+.ranking-item small {
+  display: block;
+  margin-top: 4px;
+  color: var(--muted);
+}
+
 .game-icon {
   width: 46px;
   height: 46px;
@@ -888,7 +927,8 @@ p {
   }
 
   .guess-area,
-  .friend-item {
+  .friend-item,
+  .ranking-item {
     grid-template-columns: 1fr;
   }
 }
