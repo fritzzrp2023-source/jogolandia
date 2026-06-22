@@ -1023,24 +1023,28 @@ p {
 
 .bingo-board-layout {
   display: grid;
-  grid-template-columns: minmax(300px, 0.8fr) minmax(260px, 0.45fr);
+  grid-template-columns: minmax(340px, 500px) minmax(260px, 1fr);
+  align-items: start;
   gap: 18px;
 }
 
 .bingo-card-grid {
   display: grid;
-  grid-template-columns: repeat(5, minmax(0, 1fr));
-  gap: 8px;
+  grid-template-columns: repeat(5, 58px);
+  justify-content: start;
+  gap: 6px;
+  max-width: 314px;
 }
 
 .bingo-card-grid button {
   aspect-ratio: 1;
+  width: 58px;
   min-height: 58px;
   border: 1px solid var(--line);
   border-radius: 8px;
   background: rgba(255, 255, 255, 0.9);
   color: #101828;
-  font-size: clamp(1.2rem, 2.4vw, 1.8rem);
+  font-size: 1.15rem;
   font-weight: 950;
 }
 
@@ -1113,6 +1117,17 @@ p {
 
   .game-cover-button {
     width: min(220px, 70vw);
+  }
+
+  .bingo-card-grid {
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+    max-width: min(100%, 330px);
+  }
+
+  .bingo-card-grid button {
+    width: auto;
+    min-height: 52px;
+    font-size: 1rem;
   }
 
   .keyboard {

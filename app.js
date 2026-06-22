@@ -1094,8 +1094,11 @@ function renderBingoCard(playerCard, match) {
 function showBingoMatch(match) {
   const state = match.state || {};
   const playerCard = state.playerCards?.[String(currentUser.id)];
+  const alreadyOpen = !document.querySelector("#bingoPanel").hidden && bingo?.remoteMatchId === match.id;
   bingo = { remoteMatchId: match.id, match };
-  openBingoMatchView();
+  if (!alreadyOpen) {
+    openBingoMatchView();
+  }
   document.querySelector("#activeBingoCode").textContent = match.roomCode || state.roomCode || "----";
   document.querySelector("#bingoSummary").innerHTML = `
     <span>${state.winCondition === "full" ? "Cartela cheia" : "Fileira"}</span>
@@ -1135,7 +1138,9 @@ function showBingoMatch(match) {
     winner.hidden = true;
   }
 
-  startBingoPolling(match.id);
+  if (!alreadyOpen || !bingoTimer) {
+    startBingoPolling(match.id);
+  }
 }
 
 function startBingoPolling(matchId) {
