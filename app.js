@@ -47,6 +47,7 @@ let notificationsTimer = null;
 let remoteMatchTimer = null;
 let activeRemoteMatchId = null;
 let lastNotificationCount = 0;
+let localNextRoundTimer = null;
 
 function onlyDigits(value) {
   return String(value || "").replace(/\D/g, "");
@@ -210,7 +211,7 @@ function stopNotifications() {
 function startNotifications() {
   stopNotifications();
   loadNotifications(false);
-  notificationsTimer = window.setInterval(() => loadNotifications(false), 8000);
+  notificationsTimer = window.setInterval(() => loadNotifications(false), 4000);
 }
 
 function renderDashboard(user) {
@@ -229,6 +230,7 @@ function renderAuth() {
   currentUser = null;
   stopNotifications();
   stopRemotePolling();
+  stopLocalNextRound();
   authView.hidden = false;
   dashboardView.hidden = true;
   authView.style.display = "grid";
@@ -260,6 +262,7 @@ function showPanel(name) {
 
 function showGamesHome() {
   stopRemotePolling();
+  stopLocalNextRound();
   document.querySelector("#gamesGrid").hidden = false;
   document.querySelector("#hangmanSetup").hidden = true;
   document.querySelector("#hangmanPanel").hidden = true;
@@ -737,6 +740,11 @@ function stopRemotePolling() {
   activeRemoteMatchId = null;
 }
 
+function stopLocalNextRound() {
+  window.clearTimeout(localNextRoundTimer);
+  localNextRoundTimer = null;
+}
+
 function isMyRemoteTurn() {
   if (!hangman?.remoteMatchId) return true;
   const active = hangman.players[hangman.turn] || {};
@@ -817,7 +825,7 @@ function showRemoteMatch(match) {
 function startRemotePolling(matchId) {
   activeRemoteMatchId = matchId;
   window.clearInterval(remoteMatchTimer);
-  remoteMatchTimer = window.setInterval(() => loadRemoteMatch(matchId, false), 3000);
+  remoteMatchTimer = window.setInterval(() => loadRemoteMatch(matchId, false), 800);
 }
 
 async function loadRemoteMatch(matchId, showErrors = true) {
@@ -865,6 +873,7 @@ async function startSharedHangman(config) {
 
 function startHangman(config = getSelectedHangmanConfig()) {
   stopRemotePolling();
+  stopLocalNextRound();
   const rules = difficultyRules[config.difficulty] || difficultyRules.normal;
   const dictionary = hangmanWords[config.difficulty] || hangmanWords.normal;
   const word = dictionary[Math.floor(Math.random() * dictionary.length)];
@@ -938,8 +947,14 @@ function nextTurn() {
 
 function finishHangman(message, type = "success") {
   hangman.locked = true;
-  setMessage(document.querySelector("#hangmanMessage"), message, type);
+  setMessage(document.querySelector("#hangmanMessage"), `${message} Nova rodada em 5 segundos.`, type);
   renderHangman();
+  stopLocalNextRound();
+  localNextRoundTimer = window.setTimeout(() => startHangman({
+    difficulty: hangman?.difficulty || getSelectedHangmanConfig().difficulty,
+    mode: hangman?.mode || getSelectedHangmanConfig().mode,
+    invitedFriends: hangman?.invitedFriends || [],
+  }), 5000);
 }
 
 async function awardHangmanWin(winner, reason) {
@@ -1040,12 +1055,14 @@ function playBotTurn() {
 
 document.querySelector("#closeHangmanGame").addEventListener("click", () => {
   stopRemotePolling();
+  stopLocalNextRound();
   document.querySelector("#hangmanPanel").hidden = true;
   showGamesHome();
 });
 
 document.querySelector("#changeHangmanConfig").addEventListener("click", () => {
   stopRemotePolling();
+  stopLocalNextRound();
   document.querySelector("#hangmanPanel").hidden = true;
   document.querySelector("#hangmanSetup").hidden = false;
   loadSetupFriends();

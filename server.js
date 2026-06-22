@@ -848,6 +848,19 @@ async function getMatchForUser(matchId, userId) {
   return match;
 }
 
+async function cleanupOldInvites() {
+  const cutoff = new Date(Date.now() - 2 * 60 * 1000).toISOString();
+
+  await Promise.allSettled([
+    supabaseRequest(`friendships?status=eq.pending&created_at=lt.${encodeURIComponent(cutoff)}`, {
+      method: "DELETE",
+    }),
+    supabaseRequest(`game_matches?status=eq.pending&created_at=lt.${encodeURIComponent(cutoff)}`, {
+      method: "DELETE",
+    }),
+  ]);
+}
+
 async function handleNotifications(request, response) {
   try {
     const sessionUser = await requireSessionUser(request, response);
@@ -855,6 +868,8 @@ async function handleNotifications(request, response) {
     if (!sessionUser) {
       return;
     }
+
+    await cleanupOldInvites();
 
     const friendRows = await supabaseRequest(
       `friendships?select=id,requester_id,created_at&addressee_id=${eq(sessionUser.id)}&status=eq.pending&order=created_at.desc`,
@@ -1026,8 +1041,23 @@ async function handleMatchGet(request, response, matchId) {
       return;
     }
 
-    const usersMap = await getUsersMap(match.player_ids || []);
-    send(response, 200, { ok: true, match: serializeMatch(match, sessionUser, usersMap) });
+    let currentMatch = match;
+
+    if (match.status === "finished" && Number(match.state?.nextRoundAt || 0) <= Date.now()) {
+      const state = await createHangmanState(match);
+      const updated = await supabaseRequest(`game_matches?id=${eq(match.id)}`, {
+        method: "PATCH",
+        body: JSON.stringify({
+          status: "active",
+          state,
+          updated_at: new Date().toISOString(),
+        }),
+      });
+      currentMatch = updated[0];
+    }
+
+    const usersMap = await getUsersMap(currentMatch.player_ids || []);
+    send(response, 200, { ok: true, match: serializeMatch(currentMatch, sessionUser, usersMap) });
   } catch (error) {
     logSafeError("match-get", error);
     send(response, 500, { ok: false, message: "Nao foi possivel carregar a partida." });
@@ -1085,6 +1115,11 @@ async function handleMatchStart(request, response, matchId) {
 }
 
 async function saveMatchState(match, state) {
+  if (state.locked && !state.nextRoundAt) {
+    state.nextRoundAt = Date.now() + 5000;
+    state.message = `${state.message} Nova rodada em 5 segundos.`;
+  }
+
   const status = state.locked ? "finished" : "active";
   const updated = await supabaseRequest(`game_matches?id=${eq(match.id)}`, {
     method: "PATCH",
