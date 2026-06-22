@@ -1,5 +1,6 @@
 const SESSION_KEY = "jogarium_session_token";
 const OLD_SESSION_KEY = "jogolandia_session_token";
+const ACTIVE_MATCH_KEY = "jogarium_active_match";
 const API_BASE = location.protocol === "file:" ? "http://127.0.0.1:8080" : "";
 
 const authView = document.querySelector("#authView");
@@ -173,6 +174,7 @@ let bingoSetupFriends = [];
 let bingoInviteIds = [];
 let bingoTimer = null;
 let lastBingoWinnerKey = "";
+const leavingMatchIds = new Set();
 
 function onlyDigits(value) {
   return String(value || "").replace(/\D/g, "");
@@ -363,6 +365,21 @@ function renderDashboard(user) {
   startNotifications();
   showPanel("games");
   window.scrollTo({ top: 0, behavior: "instant" });
+  restoreActiveMatch();
+}
+
+async function restoreActiveMatch() {
+  const saved = JSON.parse(localStorage.getItem(ACTIVE_MATCH_KEY) || "null");
+
+  if (!saved?.matchId) {
+    return;
+  }
+
+  try {
+    await loadRemoteMatch(Number(saved.matchId), false);
+  } catch {
+    clearActiveMatch();
+  }
 }
 
 function renderAuth() {
@@ -403,12 +420,24 @@ function showGamesHome() {
   stopRemotePolling();
   stopLocalNextRound();
   stopBingoPolling();
+  bingo = null;
+  hangman = null;
   document.querySelector("#gamesGrid").hidden = false;
   document.querySelector("#roomChoice").hidden = true;
   document.querySelector("#hangmanSetup").hidden = true;
   document.querySelector("#hangmanPanel").hidden = true;
   document.querySelector("#bingoSetup").hidden = true;
   document.querySelector("#bingoPanel").hidden = true;
+}
+
+function rememberActiveMatch(game, matchId) {
+  if (matchId) {
+    localStorage.setItem(ACTIVE_MATCH_KEY, JSON.stringify({ game, matchId: Number(matchId) }));
+  }
+}
+
+function clearActiveMatch() {
+  localStorage.removeItem(ACTIVE_MATCH_KEY);
 }
 
 function showRoomChoice(gameType) {
@@ -433,6 +462,7 @@ function prepareHangmanHome() {
   document.querySelector("#bingoSetup").hidden = true;
   document.querySelector("#bingoPanel").hidden = true;
   document.querySelector("#hangmanRoomCodeBox").hidden = true;
+  updateSetupVisibility();
   loadSetupFriends();
 }
 
@@ -444,7 +474,18 @@ function prepareBingoHome() {
   document.querySelector("#bingoSetup").hidden = false;
   document.querySelector("#bingoPanel").hidden = true;
   document.querySelector("#bingoRoomCodeBox").hidden = true;
+  updateSetupVisibility();
   loadBingoSetupFriends();
+}
+
+function updateSetupVisibility() {
+  const hangmanAccess = document.querySelector('input[name="hangmanAccess"]:checked')?.value || "code";
+  const bingoAccess = document.querySelector('input[name="bingoAccess"]:checked')?.value || "code";
+  const bingoDrawMode = document.querySelector('input[name="bingoDrawMode"]:checked')?.value || "auto";
+
+  document.querySelector("#hangmanFriendsCard").hidden = hangmanAccess !== "invite";
+  document.querySelector("#bingoFriendsCard").hidden = bingoAccess !== "invite";
+  document.querySelector("#bingoDrawSecondsField").hidden = bingoDrawMode !== "auto";
 }
 
 async function loadProfile() {
@@ -734,6 +775,7 @@ document.querySelector("#joinGameRoom").addEventListener("click", async () => {
       body: { roomCode },
     });
     showToast(result.message);
+    leavingMatchIds.delete(Number(result.match.id));
     showRemoteMatch(result.match);
   } catch (error) {
     setMessage(message, error.message, "error");
@@ -743,6 +785,9 @@ document.querySelector("#joinGameRoom").addEventListener("click", async () => {
 document.querySelector("#copyHangmanRoomCode").addEventListener("click", () => copyText(document.querySelector("#hangmanRoomCode").textContent));
 document.querySelector("#copyBingoRoomCode").addEventListener("click", () => copyText(document.querySelector("#bingoRoomCode").textContent));
 document.querySelector("#copyActiveBingoCode").addEventListener("click", () => copyText(document.querySelector("#activeBingoCode").textContent));
+document.querySelectorAll('input[name="hangmanAccess"], input[name="bingoAccess"], input[name="bingoDrawMode"]').forEach((input) => {
+  input.addEventListener("change", () => updateSetupVisibility());
+});
 
 document.addEventListener("click", (event) => {
   if (!userMenu.hidden && !event.target.closest(".user-box")) {
@@ -933,6 +978,7 @@ document.querySelector("#notificationList").addEventListener("click", async (eve
       method: "POST",
       body: { matchId: Number(matchButton.dataset.acceptMatch) },
     });
+    leavingMatchIds.delete(Number(result.match.id));
     showToast(result.message);
     showRemoteMatch(result.match);
     await loadNotifications(false);
@@ -994,6 +1040,7 @@ function getSelectedBingoConfig() {
     difficulty: "normal",
     mode: "bingo",
     accessMode: document.querySelector('input[name="bingoAccess"]:checked')?.value || "code",
+    drawMode: document.querySelector('input[name="bingoDrawMode"]:checked')?.value || "auto",
     drawSeconds: Math.max(3, Math.min(60, Number(document.querySelector("#bingoDrawSeconds").value || 8))),
     winCondition: document.querySelector('input[name="bingoWin"]:checked')?.value || "line",
     invitedFriends: bingoSetupFriends.filter((friend) => bingoInviteIds.includes(Number(friend.id))),
@@ -1092,21 +1139,27 @@ function renderBingoCard(playerCard, match) {
 }
 
 function showBingoMatch(match) {
+  if (leavingMatchIds.has(Number(match.id))) {
+    return;
+  }
+
   const state = match.state || {};
   const playerCard = state.playerCards?.[String(currentUser.id)];
   const alreadyOpen = !document.querySelector("#bingoPanel").hidden && bingo?.remoteMatchId === match.id;
   bingo = { remoteMatchId: match.id, match };
+  rememberActiveMatch("bingo", match.id);
   if (!alreadyOpen) {
     openBingoMatchView();
   }
   document.querySelector("#activeBingoCode").textContent = match.roomCode || state.roomCode || "----";
   document.querySelector("#bingoSummary").innerHTML = `
     <span>${state.winCondition === "full" ? "Cartela cheia" : "Fileira"}</span>
-    <span>${state.drawSeconds || 8}s</span>
+    <span>${state.drawMode === "manual" ? "Manual" : `${state.drawSeconds || 8}s`}</span>
     <span>${match.status === "pending" ? "Aguardando" : match.status === "active" ? "Em jogo" : "Encerrado"}</span>
   `;
   document.querySelector("#startBingoMatch").hidden = !match.canStart || match.status !== "pending";
   document.querySelector("#startBingoMatch").dataset.matchId = match.id;
+  document.querySelector("#drawBingoNumber").hidden = !(Number(match.hostId) === Number(currentUser.id) && match.status === "active" && state.drawMode === "manual" && !state.locked);
   document.querySelector("#rerollBingoCard").disabled = match.status !== "pending";
   document.querySelector("#confirmBingoCard").disabled = match.status !== "pending" || Boolean(playerCard?.confirmed);
   document.querySelector("#drawnNumbers").innerHTML = (state.calledNumbers || []).length
@@ -1120,7 +1173,8 @@ function showBingoMatch(match) {
     return `
       <div class="${Number(player.id) === Number(state.winnerUserId) ? "active-score" : ""}">
         <strong>${player.nickname}</strong>
-        <span>${status}</span>
+        <span>ID ${player.publicId} - ${status}</span>
+        ${Number(player.id) !== Number(currentUser.id) ? `<button type="button" data-bingo-add-friend="${player.publicId}">Adicionar amigo</button>` : ""}
       </div>
     `;
   }).join("");
@@ -1152,6 +1206,7 @@ function startBingoPolling(matchId) {
 function showWaitingMatch(match) {
   stopRemotePolling();
   activeRemoteMatchId = match.id;
+  rememberActiveMatch(match.game || match.state?.game || "hangman", match.id);
   openHangmanMatchView();
   document.querySelector("#wordGuess").value = "";
   document.querySelector("#turnLabel").textContent = "Aguardando inicio da partida";
@@ -1205,6 +1260,7 @@ function showRemoteMatch(match) {
   }
 
   const state = match.state || {};
+  rememberActiveMatch("hangman", match.id);
   hangman = {
     matchId: `remote-${match.id}`,
     remoteMatchId: match.id,
@@ -1465,6 +1521,8 @@ function playBotTurn() {
 }
 
 document.querySelector("#closeHangmanGame").addEventListener("click", () => {
+  if (hangman?.remoteMatchId) leavingMatchIds.add(Number(hangman.remoteMatchId));
+  clearActiveMatch();
   stopRemotePolling();
   stopLocalNextRound();
   document.querySelector("#hangmanPanel").hidden = true;
@@ -1513,11 +1571,13 @@ document.querySelector("#createBingoRoom").addEventListener("click", async () =>
         mode: "bingo",
         difficulty: "normal",
         accessMode: config.accessMode,
+        drawMode: config.drawMode,
         drawSeconds: config.drawSeconds,
         winCondition: config.winCondition,
         friendIds: config.invitedFriends.map((friend) => friend.id),
       },
     });
+    leavingMatchIds.delete(Number(result.match.id));
     document.querySelector("#bingoRoomCode").textContent = result.match.roomCode;
     document.querySelector("#bingoRoomCodeBox").hidden = false;
     showToast(result.message);
@@ -1575,12 +1635,32 @@ document.querySelector("#startBingoMatch").addEventListener("click", async () =>
 
 document.querySelector("#rerollBingoCard").addEventListener("click", () => sendBingoAction("reroll"));
 document.querySelector("#confirmBingoCard").addEventListener("click", () => sendBingoAction("confirm"));
+document.querySelector("#drawBingoNumber").addEventListener("click", () => sendBingoAction("draw"));
 document.querySelector("#bingoCardGrid").addEventListener("click", (event) => {
   const button = event.target.closest("[data-bingo-number]");
   if (button) sendBingoAction("mark", { number: Number(button.dataset.bingoNumber) });
 });
 
+document.querySelector("#bingoPlayers").addEventListener("click", async (event) => {
+  const button = event.target.closest("[data-bingo-add-friend]");
+  if (!button) return;
+
+  try {
+    const result = await apiRequest("/api/friends/invite", {
+      method: "POST",
+      body: { friendId: button.dataset.bingoAddFriend },
+    });
+    showToast(result.message);
+    button.disabled = true;
+    button.textContent = "Convite enviado";
+  } catch (error) {
+    showToast(error.message);
+  }
+});
+
 document.querySelector("#closeBingoGame").addEventListener("click", () => {
+  if (bingo?.remoteMatchId) leavingMatchIds.add(Number(bingo.remoteMatchId));
+  clearActiveMatch();
   stopBingoPolling();
   showGamesHome();
 });

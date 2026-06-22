@@ -1100,7 +1100,7 @@ function nextBingoNumber(state) {
 }
 
 function advanceBingoDraw(state) {
-  if (state.locked || !state.started) return state;
+  if (state.locked || !state.started || state.drawMode === "manual") return state;
 
   const drawMs = Math.max(3, Number(state.drawSeconds || 8)) * 1000;
   const now = Date.now();
@@ -1229,6 +1229,7 @@ async function handleRoomCreate(request, response) {
     if (game === "bingo") {
       state = ensureBingoPlayerState({
         ...state,
+        drawMode: body.drawMode === "manual" ? "manual" : "auto",
         drawSeconds: Math.max(3, Math.min(60, Number(body.drawSeconds || 8))),
         winCondition: body.winCondition === "full" ? "full" : "line",
         calledNumbers: [],
@@ -1550,8 +1551,10 @@ async function handleMatchStart(request, response, matchId) {
         locked: false,
         calledNumbers: [],
         currentNumber: null,
-        nextDrawAt: Date.now() + 1000,
-        message: "Bingo iniciado. O primeiro numero sera sorteado em instantes.",
+        nextDrawAt: match.state?.drawMode === "manual" ? null : Date.now() + 1000,
+        message: match.state?.drawMode === "manual"
+          ? "Bingo iniciado. Aguarde o dono da sala sortear o numero."
+          : "Bingo iniciado. O primeiro numero sera sorteado em instantes.",
         messageType: "success",
       };
     } else {
@@ -1803,6 +1806,29 @@ async function handleBingoAction(request, response, matchId) {
         });
       } else {
         state.message = `${sessionUser.nickname} marcou o numero ${number}.`;
+        state.messageType = "success";
+      }
+    } else if (action === "draw") {
+      if (Number(match.host_id) !== Number(sessionUser.id)) {
+        send(response, 403, { ok: false, message: "Somente o dono da sala pode sortear manualmente." });
+        return;
+      }
+
+      if (match.status !== "active" || state.locked) {
+        send(response, 400, { ok: false, message: "O Bingo ainda nao esta ativo." });
+        return;
+      }
+
+      const number = nextBingoNumber(state);
+
+      if (!number) {
+        state.locked = true;
+        state.message = "Todos os numeros foram sorteados.";
+        state.messageType = "success";
+      } else {
+        state.calledNumbers = [...(state.calledNumbers || []), number];
+        state.currentNumber = number;
+        state.message = `Numero sorteado: ${number}`;
         state.messageType = "success";
       }
     } else {

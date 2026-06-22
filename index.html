@@ -234,7 +234,7 @@
                 </div>
               </section>
 
-              <section class="profile-card">
+              <section class="profile-card" id="hangmanFriendsCard">
                 <h3>Amigos convidados</h3>
                 <p class="muted-label">Veja quem esta online e convide para entrar na sua sala.</p>
                 <div class="setup-friends" id="setupFriendsList"></div>
@@ -299,7 +299,19 @@
 
               <section class="profile-card">
                 <h3>Sorteio</h3>
-                <label class="field">
+                <div class="option-grid">
+                  <label class="option-card">
+                    <input type="radio" name="bingoDrawMode" value="auto" checked />
+                    <span>Automatico</span>
+                    <small>Sorteia um numero a cada X segundos.</small>
+                  </label>
+                  <label class="option-card">
+                    <input type="radio" name="bingoDrawMode" value="manual" />
+                    <span>Manual</span>
+                    <small>O dono da sala clica para sortear.</small>
+                  </label>
+                </div>
+                <label class="field" id="bingoDrawSecondsField">
                   <span>Tempo entre numeros</span>
                   <input id="bingoDrawSeconds" type="number" min="3" max="60" value="8" />
                   <small class="field-message">De 3 a 60 segundos.</small>
@@ -318,7 +330,7 @@
                 </div>
               </section>
 
-              <section class="profile-card">
+              <section class="profile-card" id="bingoFriendsCard" hidden>
                 <h3>Amigos convidados</h3>
                 <p class="muted-label">Opcional para sala por codigo. Necessario se escolher convite.</p>
                 <div class="setup-friends" id="bingoFriendsList"></div>
@@ -400,6 +412,7 @@
                 <button class="link-button" id="copyActiveBingoCode" type="button">Copiar</button>
               </div>
               <button class="primary-button" id="startBingoMatch" type="button">Iniciar jogo</button>
+              <button class="primary-button" id="drawBingoNumber" type="button" hidden>Sortear numero</button>
             </div>
 
             <div class="drawn-numbers" id="drawnNumbers"></div>

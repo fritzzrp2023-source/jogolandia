@@ -415,7 +415,14 @@ p {
 }
 
 .room-choice-grid {
-  grid-template-columns: repeat(2, minmax(240px, 1fr));
+  grid-template-columns: repeat(2, minmax(240px, 430px));
+  align-items: stretch;
+  justify-content: start;
+}
+
+.room-action-card {
+  min-height: 220px;
+  padding: 18px;
 }
 
 .room-action-card input {
@@ -925,6 +932,18 @@ p {
   display: block;
   margin-top: 4px;
   color: var(--muted);
+}
+
+.team-score button {
+  width: fit-content;
+  min-height: 34px;
+  margin-top: 8px;
+  padding: 0 12px;
+  border: 1px solid rgba(255, 207, 90, 0.58);
+  border-radius: 8px;
+  background: rgba(255, 207, 90, 0.1);
+  color: #fff3cf;
+  font-weight: 850;
 }
 
 .turn-label {
