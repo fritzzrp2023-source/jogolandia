@@ -1186,10 +1186,9 @@ async function handleMatchGuessLetter(request, response, matchId) {
     const solved = [...state.normalized].every((item) => state.guessed.includes(item));
 
     if (solved) {
-      const winner = [...state.players].sort((a, b) => b.hits - a.hits)[0];
       state.locked = true;
-      state.winnerUserIds = winner.userIds || [];
-      state.message = `${winner.name} venceu com mais letras acertadas!`;
+      state.winnerUserIds = active.userIds || [];
+      state.message = `${active.name} completou a palavra e venceu!`;
       state.messageType = "success";
     } else if (active.misses >= state.maxMisses) {
       const winner = state.players[(state.turn + 1) % state.players.length];

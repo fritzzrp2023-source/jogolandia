@@ -1035,9 +1035,8 @@ function guessLetter(letter) {
   }
   const solved = [...hangman.normalized].every((item) => hangman.guessed.has(item));
   if (solved) {
-    const winner = [...hangman.players].sort((a, b) => b.hits - a.hits)[0];
-    finishHangman(`${winner.name} venceu com mais letras acertadas!`);
-    awardHangmanWin(winner, "word_completed");
+    finishHangman(`${active.name} completou a palavra e venceu!`);
+    awardHangmanWin(active, "word_completed");
     return;
   }
   if (active.misses >= hangman.maxMisses) {
