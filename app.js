@@ -41,6 +41,7 @@ const difficultyRules = {
 let currentUser = null;
 let hangman = null;
 let setupFriends = [];
+let setupInviteIds = [];
 let lastAwardedMatchId = null;
 let notificationsTimer = null;
 let remoteMatchTimer = null;
@@ -334,24 +335,27 @@ async function loadRanking() {
 async function loadSetupFriends() {
   const list = document.querySelector("#setupFriendsList");
   list.innerHTML = '<p class="muted-label">Carregando amigos...</p>';
+  setupInviteIds = [];
 
   try {
     const result = await apiRequest("/api/friends", { method: "GET" });
     setupFriends = result.friends.filter((friend) => friend.status === "accepted");
 
     if (!setupFriends.length) {
-      list.innerHTML = '<p class="muted-label">Nenhum amigo aceito ainda. Voce pode iniciar solo, 1x1 local ou 2x2 local.</p>';
+      list.innerHTML = '<p class="muted-label">Nenhum amigo aceito ainda. Voce pode iniciar solo contra o bot.</p>';
       return;
     }
 
     list.innerHTML = setupFriends.map((friend) => `
-      <label class="friend-check">
-        <input type="checkbox" value="${friend.id}" ${friend.online ? "" : "disabled"} />
+      <div class="friend-check">
         <span>
           <strong>${friend.nickname}</strong>
           <small>ID ${friend.publicId} - ${friend.online ? "online" : "offline"}</small>
         </span>
-      </label>
+        <button type="button" data-setup-invite="${friend.id}" ${friend.online ? "" : "disabled"}>
+          ${friend.online ? "Convidar" : "Offline"}
+        </button>
+      </div>
     `).join("");
   } catch (error) {
     list.innerHTML = `<p class="form-message error">${error.message}</p>`;
@@ -689,11 +693,25 @@ document.querySelector("#notificationList").addEventListener("click", async (eve
   }
 });
 
+document.querySelector("#setupFriendsList").addEventListener("click", (event) => {
+  const button = event.target.closest("[data-setup-invite]");
+  if (!button) return;
+
+  const friendId = Number(button.dataset.setupInvite);
+  const alreadySelected = setupInviteIds.includes(friendId);
+  setupInviteIds = alreadySelected
+    ? setupInviteIds.filter((id) => id !== friendId)
+    : [...setupInviteIds, friendId];
+
+  button.classList.toggle("selected", !alreadySelected);
+  button.textContent = alreadySelected ? "Convidar" : "Convidado";
+  setMessage(document.querySelector("#setupMessage"), `${setupInviteIds.length} amigo(s) selecionado(s).`, "success");
+});
+
 function getSelectedHangmanConfig() {
   const difficulty = document.querySelector('input[name="difficulty"]:checked')?.value || "normal";
   const mode = document.querySelector('input[name="gameMode"]:checked')?.value || "solo";
-  const selectedFriendIds = [...document.querySelectorAll("#setupFriendsList input:checked")].map((input) => Number(input.value));
-  const invitedFriends = setupFriends.filter((friend) => selectedFriendIds.includes(Number(friend.id)));
+  const invitedFriends = setupFriends.filter((friend) => setupInviteIds.includes(Number(friend.id)));
 
   return { difficulty, mode, invitedFriends };
 }
@@ -734,15 +752,17 @@ function showWaitingMatch(match) {
   document.querySelector("#wordGuess").value = "";
   document.querySelector("#turnLabel").textContent = "Aguardando inicio da partida";
   document.querySelector("#wordSlots").innerHTML = "<span>...</span>";
-  document.querySelector("#letterKeyboard").innerHTML = "";
+  document.querySelector("#letterKeyboard").innerHTML = match.canStart
+    ? `<button class="room-start-button" type="button" data-start-match="${match.id}">Iniciar jogo</button>`
+    : "";
   document.querySelector("#teamScore").innerHTML = match.playerIds.map((userId) => {
     const accepted = match.acceptedIds.includes(Number(userId));
-    const waitingUser = match.waitingFor.find((user) => Number(user.id) === Number(userId));
-    const label = waitingUser?.nickname || (Number(userId) === Number(currentUser.id) ? currentUser.nickname : `Usuario ${userId}`);
+    const player = match.players?.find((user) => Number(user.id) === Number(userId));
+    const label = player?.nickname || (Number(userId) === Number(currentUser.id) ? currentUser.nickname : `Usuario ${userId}`);
     return `
       <div class="${accepted ? "active-score" : ""}">
         <strong>${label}</strong>
-        <span>${accepted ? "Convite aceito" : "Aguardando aceitar"}</span>
+        <span>${accepted ? "Dentro da sala - aguardando inicio" : "Convite enviado - aguardando entrar"}</span>
       </div>
     `;
   }).join("");
@@ -755,9 +775,11 @@ function showWaitingMatch(match) {
   document.querySelector("#newHangmanRound").disabled = true;
   setMessage(
     document.querySelector("#hangmanMessage"),
-    match.waitingFor.length
-      ? `Aguardando: ${match.waitingFor.map((user) => user.nickname).join(", ")}.`
-      : "Todos aceitaram. Preparando partida...",
+    match.canStart
+      ? "Todos entraram na sala. Clique em Iniciar jogo."
+      : match.waitingFor.length
+        ? `Aguardando entrar: ${match.waitingFor.map((user) => user.nickname).join(", ")}.`
+        : "Todos entraram na sala. Aguardando o criador iniciar o jogo.",
     "success",
   );
   startRemotePolling(match.id);
@@ -1045,9 +1067,25 @@ document.querySelector("#startConfiguredHangman").addEventListener("click", () =
 });
 
 document.querySelector("#letterKeyboard").addEventListener("click", (event) => {
+  const startButton = event.target.closest("[data-start-match]");
+  if (startButton) {
+    startRemoteMatch(Number(startButton.dataset.startMatch));
+    return;
+  }
+
   const button = event.target.closest("[data-letter]");
   if (button) guessLetter(button.dataset.letter);
 });
+
+async function startRemoteMatch(matchId) {
+  try {
+    const result = await apiRequest(`/api/matches/${matchId}/start`, { method: "POST" });
+    showToast(result.message);
+    showRemoteMatch(result.match);
+  } catch (error) {
+    setMessage(document.querySelector("#hangmanMessage"), error.message, "error");
+  }
+}
 
 document.querySelector("#guessWordButton").addEventListener("click", async () => {
   const guess = normalizeText(document.querySelector("#wordGuess").value);

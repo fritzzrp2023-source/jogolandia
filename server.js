@@ -817,6 +817,11 @@ function serializeMatch(match, sessionUser, usersMap = new Map()) {
     id: Number(match.id),
     hostId: Number(match.host_id),
     playerIds,
+    players: playerIds.map((userId) => ({
+      id: userId,
+      publicId: usersMap.get(userId) ? getPublicId(usersMap.get(userId)) : String(userId),
+      nickname: usersMap.get(userId)?.nickname || `Usuario ${userId}`,
+    })),
     acceptedIds,
     waitingFor,
     status: match.status,
@@ -825,6 +830,9 @@ function serializeMatch(match, sessionUser, usersMap = new Map()) {
     difficulty: match.difficulty,
     state: match.state || {},
     isMine: playerIds.includes(Number(sessionUser.id)),
+    canStart: Number(match.host_id) === Number(sessionUser.id)
+      && match.status === "pending"
+      && waitingFor.length === 0,
     createdAt: match.created_at,
   };
 }
@@ -971,20 +979,21 @@ async function handleMatchAccept(request, response) {
       return;
     }
 
-    let acceptedIds = [...new Set([...(match.accepted_ids || []).map(Number), Number(sessionUser.id)])];
-    let status = "pending";
-    let state = match.state || {};
-
-    if ((match.player_ids || []).every((userId) => acceptedIds.includes(Number(userId)))) {
-      status = "active";
-      state = await createHangmanState({ ...match, accepted_ids: acceptedIds });
-    }
+    const acceptedIds = [...new Set([...(match.accepted_ids || []).map(Number), Number(sessionUser.id)])];
+    const allAccepted = (match.player_ids || []).every((userId) => acceptedIds.includes(Number(userId)));
+    const state = {
+      ...(match.state || {}),
+      message: allAccepted
+        ? "Todos entraram na sala. Aguardando o criador iniciar o jogo."
+        : "Voce entrou na sala. Aguardando os outros jogadores.",
+      messageType: "success",
+    };
 
     const updated = await supabaseRequest(`game_matches?id=${eq(match.id)}`, {
       method: "PATCH",
       body: JSON.stringify({
         accepted_ids: acceptedIds,
-        status,
+        status: "pending",
         state,
         updated_at: new Date().toISOString(),
       }),
@@ -993,7 +1002,7 @@ async function handleMatchAccept(request, response) {
 
     send(response, 200, {
       ok: true,
-      message: status === "active" ? "Todos aceitaram. Partida iniciada." : "Convite aceito. Aguardando os outros jogadores.",
+      message: allAccepted ? "Voce entrou na sala. Aguarde o criador iniciar." : "Voce entrou na sala. Aguardando os outros jogadores.",
       match: serializeMatch(updated[0], sessionUser, usersMap),
     });
   } catch (error) {
@@ -1022,6 +1031,56 @@ async function handleMatchGet(request, response, matchId) {
   } catch (error) {
     logSafeError("match-get", error);
     send(response, 500, { ok: false, message: "Nao foi possivel carregar a partida." });
+  }
+}
+
+async function handleMatchStart(request, response, matchId) {
+  try {
+    const sessionUser = await requireSessionUser(request, response);
+
+    if (!sessionUser) {
+      return;
+    }
+
+    const match = await getMatchForUser(matchId, sessionUser.id);
+
+    if (!match || match.status !== "pending") {
+      send(response, 404, { ok: false, message: "Sala de partida nao encontrada." });
+      return;
+    }
+
+    if (Number(match.host_id) !== Number(sessionUser.id)) {
+      send(response, 403, { ok: false, message: "Somente quem criou a sala pode iniciar o jogo." });
+      return;
+    }
+
+    const acceptedIds = (match.accepted_ids || []).map(Number);
+    const waiting = (match.player_ids || []).filter((userId) => !acceptedIds.includes(Number(userId)));
+
+    if (waiting.length) {
+      send(response, 400, { ok: false, message: "Ainda tem jogador sem entrar na sala." });
+      return;
+    }
+
+    const state = await createHangmanState(match);
+    const updated = await supabaseRequest(`game_matches?id=${eq(match.id)}`, {
+      method: "PATCH",
+      body: JSON.stringify({
+        status: "active",
+        state,
+        updated_at: new Date().toISOString(),
+      }),
+    });
+    const usersMap = await getUsersMap(updated[0].player_ids || []);
+
+    send(response, 200, {
+      ok: true,
+      message: "Partida iniciada.",
+      match: serializeMatch(updated[0], sessionUser, usersMap),
+    });
+  } catch (error) {
+    logSafeError("match-start", error);
+    send(response, 500, { ok: false, message: "Nao foi possivel iniciar a partida." });
   }
 }
 
@@ -1294,6 +1353,13 @@ const server = http.createServer(async (request, response) => {
 
   if (request.method === "POST" && matchGuessLetter) {
     handleMatchGuessLetter(request, response, Number(matchGuessLetter[1]));
+    return;
+  }
+
+  const matchStart = url.pathname.match(/^\/api\/matches\/(\d+)\/start$/);
+
+  if (request.method === "POST" && matchStart) {
+    handleMatchStart(request, response, Number(matchStart[1]));
     return;
   }
 
