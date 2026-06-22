@@ -51,6 +51,106 @@ const hangmanWords = {
   ],
 };
 
+const hangmanExpansionParts = {
+  easy: {
+    maxLength: 14,
+    roots: [
+      "abacaxi", "abelha", "abraco", "amigo", "amizade", "anel", "apito", "areia", "arvore", "aviao",
+      "bala", "banana", "barco", "bicho", "bola", "bolacha", "boneca", "boneco", "brilho", "caderno",
+      "cafe", "caixa", "camisa", "caneca", "caneta", "casa", "cavalo", "cidade", "clube", "coelho",
+      "comida", "copo", "corda", "dado", "dedo", "doce", "equipe", "escada", "escola", "estrela",
+      "familia", "farol", "festa", "fita", "flor", "fogao", "folha", "fruta", "garrafa", "gato",
+      "janela", "jardim", "jogo", "lanche", "lapis", "leite", "livro", "lua", "mala", "mesa",
+      "mochila", "moeda", "mouse", "navio", "nuvem", "olho", "papel", "parque", "pedra", "peixe",
+      "pipoca", "pipa", "ponte", "porta", "praia", "prato", "queijo", "radio", "risada", "roda",
+      "roupa", "sapato", "sino", "sol", "sorvete", "tempo", "tesouro", "tigre", "trem", "vento",
+    ],
+    modifiers: [
+      "azul", "verde", "feliz", "doce", "leve", "novo", "forte", "rapido", "lento", "alto",
+      "baixo", "claro", "escuro", "bravo", "manso", "quente", "frio", "bom", "legal", "macio",
+      "duro", "cheio", "vazio", "grande", "pequeno", "redondo", "bonito", "colorido", "amarelo", "roxo",
+    ],
+  },
+  normal: {
+    maxLength: 18,
+    roots: [
+      "aventura", "biblioteca", "campeao", "campeonato", "capitulo", "charada", "conexao", "controle", "convite", "corrida",
+      "criatividade", "desenho", "diamante", "diversao", "energia", "estrategia", "explorador", "fazenda", "fantasia", "galaxia",
+      "historia", "hospital", "internet", "labirinto", "lideranca", "mensagem", "misterio", "montanha", "objetivo", "parceria",
+      "partida", "passagem", "personagem", "planilha", "pontuacao", "premiacao", "pergunta", "ranking", "resposta", "rivalidade",
+      "seguranca", "surpresa", "tabuleiro", "telefone", "torneio", "universo", "velocidade", "vencedor", "viagem", "vitoria",
+      "arquivo", "bicicleta", "cachoeira", "carteira", "computador", "conquista", "coragem", "mercado", "missao", "teclado",
+      "amizades", "aplicativo", "capitao", "cozinha", "desafio", "jogador", "memoria", "planeta", "projeto", "talento",
+    ],
+    modifiers: [
+      "digital", "secreto", "rapido", "especial", "moderno", "brilhante", "criativo", "esperto", "corajoso", "divertido",
+      "noturno", "diario", "online", "global", "virtual", "final", "inicial", "central", "principal", "surpresa",
+      "coletivo", "familiar", "popular", "radical", "urbano", "magico", "lendario", "campeao", "completo", "perfeito",
+    ],
+  },
+  hard: {
+    maxLength: 22,
+    roots: [
+      "administracao", "aprendizagem", "arqueologia", "arquitetura", "autenticacao", "classificacao", "colaboracao", "comportamento", "comunicacao", "concentracao",
+      "conhecimento", "constelacao", "criptografia", "descentralizacao", "desenvolvimento", "enciclopedia", "entretenimento", "especialidade", "experimentacao", "extraordinario",
+      "fotografia", "imprevisivel", "incompatibilidade", "independencia", "infraestrutura", "inteligencia", "interatividade", "investigacao", "laboratorio", "meteorologia",
+      "multiplicacao", "observatorio", "organizacao", "participacao", "persistencia", "personalidade", "planejamento", "possibilidade", "profissionalismo", "programacao",
+      "protagonista", "raciocinio", "representacao", "responsabilidade", "sincronizacao", "solidariedade", "sobrevivencia", "transformacao", "competitividade", "coordenacao",
+      "aperfeicoamento", "automatizacao", "compatibilidade", "complexidade", "confiabilidade", "contextualizacao", "documentacao", "especializacao", "hierarquia", "implementacao",
+      "interpretacao", "metodologia", "otimizacao", "parametrizacao", "produtividade", "reestruturacao", "sustentabilidade", "visualizacao", "vulnerabilidade", "versatilidade",
+    ],
+    modifiers: [
+      "avancado", "estrategico", "dinamico", "coletivo", "moderno", "complexo", "tecnico", "logico", "profundo", "preciso",
+      "global", "digital", "virtual", "seguro", "rapido", "criativo", "analitico", "robusto", "intenso", "eficiente",
+      "integrado", "continuo", "progressivo", "original", "central", "especial", "automatico", "inteligente", "competitivo", "colaborativo",
+    ],
+  },
+};
+
+function cleanHangmanWord(value) {
+  return String(value || "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .replace(/[^a-z]/g, "");
+}
+
+function addHangmanWord(bank, value, maxLength) {
+  const word = cleanHangmanWord(value);
+  if (word.length >= 4 && word.length <= maxLength) {
+    bank.add(word);
+  }
+}
+
+function expandHangmanWordBank(level, target = 1200) {
+  const parts = hangmanExpansionParts[level];
+  const bank = new Set();
+
+  hangmanWords[level].forEach((word) => addHangmanWord(bank, word, parts.maxLength));
+  parts.roots.forEach((root) => addHangmanWord(bank, root, parts.maxLength));
+
+  parts.roots.forEach((root) => {
+    parts.modifiers.forEach((modifier) => {
+      addHangmanWord(bank, `${root}${modifier}`, parts.maxLength);
+      addHangmanWord(bank, `${modifier}${root}`, parts.maxLength);
+    });
+  });
+
+  for (const first of parts.roots) {
+    for (const second of parts.roots) {
+      if (first !== second) {
+        addHangmanWord(bank, `${first}${second}`, parts.maxLength);
+      }
+      if (bank.size >= target) break;
+    }
+    if (bank.size >= target) break;
+  }
+
+  hangmanWords[level] = [...bank].slice(0, target);
+}
+
+["easy", "normal", "hard"].forEach((level) => expandHangmanWordBank(level));
+
 const difficultyRules = {
   easy: { label: "Facil", maxMisses: 7, botHitChance: 0.35 },
   normal: { label: "Normal", maxMisses: 6, botHitChance: 0.5 },
@@ -82,6 +182,20 @@ function formatCpf(value) {
 
 function normalizeText(value) {
   return String(value || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toUpperCase();
+}
+
+function pickHangmanWord(dictionary, usedSource = []) {
+  const usedWords = new Set(Array.from(usedSource || []).filter((word) => dictionary.includes(word)));
+  let candidates = dictionary.filter((word) => !usedWords.has(word));
+
+  if (!candidates.length) {
+    usedWords.clear();
+    candidates = dictionary;
+  }
+
+  const word = candidates[Math.floor(Math.random() * candidates.length)];
+  usedWords.add(word);
+  return { word, usedWords };
 }
 
 function setFieldState(input, state, message) {
@@ -906,9 +1020,9 @@ function startHangman(config = getSelectedHangmanConfig()) {
   stopLocalNextRound();
   const rules = difficultyRules[config.difficulty] || difficultyRules.normal;
   const dictionary = hangmanWords[config.difficulty] || hangmanWords.normal;
-  const candidates = dictionary.filter((item) => item !== hangman?.word);
-  const wordList = candidates.length ? candidates : dictionary;
-  const word = wordList[Math.floor(Math.random() * wordList.length)];
+  const previousUsedWords = hangman?.difficulty === config.difficulty ? hangman.usedWords : [];
+  const pickedWord = pickHangmanWord(dictionary, previousUsedWords);
+  const word = pickedWord.word;
   hangman = {
     matchId: `${Date.now()}-${Math.random().toString(16).slice(2)}`,
     mode: config.mode,
@@ -918,6 +1032,7 @@ function startHangman(config = getSelectedHangmanConfig()) {
     botHitChance: rules.botHitChance,
     word,
     normalized: normalizeText(word),
+    usedWords: pickedWord.usedWords,
     guessed: new Set(),
     turn: 0,
     locked: false,
