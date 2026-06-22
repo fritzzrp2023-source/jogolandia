@@ -157,6 +157,10 @@ function createPublicId() {
   return String(1254879548 + crypto.randomInt(8745120452));
 }
 
+function createRoomCode() {
+  return crypto.randomBytes(3).toString("hex").toUpperCase();
+}
+
 async function createUniquePublicId() {
   for (let attempt = 0; attempt < 8; attempt += 1) {
     const publicId = createPublicId();
@@ -935,7 +939,7 @@ async function awardMatchIfNeeded(match, state) {
   }
 
   await Promise.all(state.winnerUserIds.map((userId) => awardScoreForUser(userId, {
-    game: "hangman",
+    game: match.state?.game || "hangman",
     mode: match.mode,
     difficulty: match.difficulty,
   })));
@@ -965,6 +969,9 @@ function serializeMatch(match, sessionUser, usersMap = new Map()) {
     acceptedIds,
     waitingFor,
     status: match.status,
+    game: match.state?.game || "hangman",
+    roomCode: match.state?.roomCode || "",
+    accessMode: match.state?.accessMode || "invite",
     mode: match.mode,
     modeLabel: modeLabel(match.mode),
     difficulty: match.difficulty,
@@ -972,7 +979,8 @@ function serializeMatch(match, sessionUser, usersMap = new Map()) {
     isMine: playerIds.includes(Number(sessionUser.id)),
     canStart: Number(match.host_id) === Number(sessionUser.id)
       && match.status === "pending"
-      && waitingFor.length === 0,
+      && waitingFor.length === 0
+      && playerIds.length >= ((match.state?.game || "hangman") === "bingo" ? 1 : Math.min(2, maxPlayersForMode(match.mode, "hangman"))),
     createdAt: match.created_at,
   };
 }
@@ -988,16 +996,145 @@ async function getMatchForUser(matchId, userId) {
   return match;
 }
 
+async function createUniqueRoomCode() {
+  for (let attempt = 0; attempt < 12; attempt += 1) {
+    const roomCode = createRoomCode();
+    const matches = await supabaseRequest("game_matches?select=id,state,status&or=(status.eq.pending,status.eq.active)&limit=200");
+    const exists = matches.some((match) => String(match.state?.roomCode || "").toUpperCase() === roomCode);
+
+    if (!exists) {
+      return roomCode;
+    }
+  }
+
+  throw new Error("Nao foi possivel gerar codigo da sala.");
+}
+
+async function findMatchByRoomCode(roomCode) {
+  const code = String(roomCode || "").trim().toUpperCase();
+
+  if (!code) {
+    return null;
+  }
+
+  const matches = await supabaseRequest("game_matches?select=*&or=(status.eq.pending,status.eq.active)&order=created_at.desc&limit=200");
+  return matches.find((match) => String(match.state?.roomCode || "").toUpperCase() === code) || null;
+}
+
+function maxPlayersForMode(mode, game) {
+  if (game === "bingo") return 30;
+  if (mode === "teams") return 4;
+  if (mode === "duel") return 2;
+  return 1;
+}
+
+function createBingoCard() {
+  const ranges = [
+    [1, 15],
+    [16, 30],
+    [31, 45],
+    [46, 60],
+    [61, 75],
+  ];
+
+  const columns = ranges.map(([start, end]) => {
+    const numbers = [];
+    for (let number = start; number <= end; number += 1) numbers.push(number);
+    numbers.sort(() => crypto.randomInt(3) - 1);
+    return numbers.slice(0, 5);
+  });
+
+  const card = [];
+  for (let row = 0; row < 5; row += 1) {
+    for (let column = 0; column < 5; column += 1) {
+      card.push(columns[column][row]);
+    }
+  }
+  return card;
+}
+
+function ensureBingoPlayerState(state, user, confirmed = false) {
+  const playerCards = { ...(state.playerCards || {}) };
+  const userId = String(user.id);
+
+  if (!playerCards[userId]) {
+    playerCards[userId] = {
+      userId: Number(user.id),
+      nickname: user.nickname,
+      card: createBingoCard(),
+      marked: [],
+      confirmed,
+    };
+  }
+
+  return { ...state, playerCards };
+}
+
+function hasBingoLine(card, marked) {
+  const markedSet = new Set((marked || []).map(Number));
+  const lines = [];
+
+  for (let row = 0; row < 5; row += 1) lines.push([0, 1, 2, 3, 4].map((column) => row * 5 + column));
+  for (let column = 0; column < 5; column += 1) lines.push([0, 1, 2, 3, 4].map((row) => row * 5 + column));
+  lines.push([0, 6, 12, 18, 24], [4, 8, 12, 16, 20]);
+
+  return lines.some((line) => line.every((index) => markedSet.has(Number(card[index]))));
+}
+
+function hasBingoWin(playerCard, winCondition) {
+  if (!playerCard?.card?.length) return false;
+  const marked = playerCard.marked || [];
+  if (winCondition === "full") {
+    return playerCard.card.every((number) => marked.map(Number).includes(Number(number)));
+  }
+  return hasBingoLine(playerCard.card, marked);
+}
+
+function nextBingoNumber(state) {
+  const called = new Set((state.calledNumbers || []).map(Number));
+  const available = [];
+  for (let number = 1; number <= 75; number += 1) {
+    if (!called.has(number)) available.push(number);
+  }
+  return available.length ? available[crypto.randomInt(available.length)] : null;
+}
+
+function advanceBingoDraw(state) {
+  if (state.locked || !state.started) return state;
+
+  const drawMs = Math.max(3, Number(state.drawSeconds || 8)) * 1000;
+  const now = Date.now();
+  let nextDrawAt = Number(state.nextDrawAt || now);
+  let updated = { ...state, calledNumbers: [...(state.calledNumbers || [])] };
+
+  while (nextDrawAt <= now && !updated.locked) {
+    const number = nextBingoNumber(updated);
+    if (!number) {
+      updated.locked = true;
+      updated.message = "Todos os numeros foram sorteados.";
+      updated.messageType = "success";
+      break;
+    }
+    updated.calledNumbers.push(number);
+    updated.currentNumber = number;
+    updated.message = `Numero sorteado: ${number}`;
+    updated.messageType = "success";
+    nextDrawAt += drawMs;
+  }
+
+  updated.nextDrawAt = nextDrawAt;
+  return updated;
+}
+
 async function cleanupOldInvites() {
   const cutoff = new Date(Date.now() - 2 * 60 * 1000).toISOString();
 
+  const oldMatches = await supabaseRequest(`game_matches?select=id,state&status=eq.pending&created_at=lt.${encodeURIComponent(cutoff)}&limit=100`);
+  const oldInviteMatches = oldMatches.filter((match) => (match.state?.accessMode || "invite") === "invite");
+
   await Promise.allSettled([
-    supabaseRequest(`friendships?status=eq.pending&created_at=lt.${encodeURIComponent(cutoff)}`, {
-      method: "DELETE",
-    }),
-    supabaseRequest(`game_matches?status=eq.pending&created_at=lt.${encodeURIComponent(cutoff)}`, {
-      method: "DELETE",
-    }),
+    supabaseRequest(`friendships?status=eq.pending&created_at=lt.${encodeURIComponent(cutoff)}`, { method: "DELETE" }),
+    ...oldInviteMatches.map((match) => supabaseRequest(`game_matches?id=${eq(match.id)}`, { method: "DELETE" })),
   ]);
 }
 
@@ -1047,6 +1184,154 @@ async function handleNotifications(request, response) {
       return;
     }
     send(response, 500, { ok: false, message: "Nao foi possivel carregar notificacoes." });
+  }
+}
+
+async function handleRoomCreate(request, response) {
+  try {
+    const sessionUser = await requireSessionUser(request, response);
+
+    if (!sessionUser) {
+      return;
+    }
+
+    const body = await parseJsonBody(request);
+    const game = String(body.game || "hangman");
+    const mode = String(body.mode || (game === "bingo" ? "bingo" : "duel"));
+    const difficulty = String(body.difficulty || "normal");
+    const accessMode = String(body.accessMode || "code");
+    const friendIds = [...new Set((body.friendIds || []).map(Number).filter(Boolean))];
+
+    if (!["hangman", "bingo"].includes(game)) {
+      send(response, 400, { ok: false, message: "Jogo invalido." });
+      return;
+    }
+
+    const acceptedFriends = await getAcceptedFriendIds(sessionUser.id);
+    const invalidFriend = friendIds.find((friendId) => !acceptedFriends.has(friendId));
+
+    if (invalidFriend) {
+      send(response, 403, { ok: false, message: "Selecione apenas amigos aceitos para convidar." });
+      return;
+    }
+
+    const maxPlayers = maxPlayersForMode(mode, game);
+    const playerIds = [Number(sessionUser.id), ...friendIds].slice(0, maxPlayers);
+    const roomCode = await createUniqueRoomCode();
+    let state = {
+      game,
+      roomCode,
+      accessMode,
+      message: "Sala criada. Aguarde os jogadores entrarem.",
+      messageType: "success",
+    };
+
+    if (game === "bingo") {
+      state = ensureBingoPlayerState({
+        ...state,
+        drawSeconds: Math.max(3, Math.min(60, Number(body.drawSeconds || 8))),
+        winCondition: body.winCondition === "full" ? "full" : "line",
+        calledNumbers: [],
+        started: false,
+      }, sessionUser, false);
+    }
+
+    const created = await supabaseRequest("game_matches", {
+      method: "POST",
+      body: JSON.stringify({
+        host_id: sessionUser.id,
+        player_ids: playerIds,
+        accepted_ids: [Number(sessionUser.id)],
+        status: "pending",
+        mode,
+        difficulty,
+        state,
+      }),
+    });
+    const usersMap = await getUsersMap(playerIds);
+
+    send(response, 201, {
+      ok: true,
+      message: `Sala criada. Codigo: ${roomCode}`,
+      match: serializeMatch(created[0], sessionUser, usersMap),
+    });
+  } catch (error) {
+    logSafeError("room-create", error);
+    if (isSchemaError(error, "game_matches")) {
+      sendSchemaError(response, "sistema de salas");
+      return;
+    }
+    send(response, 500, { ok: false, message: "Nao foi possivel criar a sala." });
+  }
+}
+
+async function handleRoomJoin(request, response) {
+  try {
+    const sessionUser = await requireSessionUser(request, response);
+
+    if (!sessionUser) {
+      return;
+    }
+
+    const body = await parseJsonBody(request);
+    const match = await findMatchByRoomCode(body.roomCode);
+
+    if (!match || match.status !== "pending") {
+      send(response, 404, { ok: false, message: "Sala nao encontrada ou ja iniciada." });
+      return;
+    }
+
+    if (match.state?.accessMode === "invite") {
+      send(response, 403, { ok: false, message: "Essa sala aceita apenas jogadores convidados." });
+      return;
+    }
+
+    const playerIds = (match.player_ids || []).map(Number);
+    const acceptedIds = (match.accepted_ids || []).map(Number);
+    const game = match.state?.game || "hangman";
+    const maxPlayers = maxPlayersForMode(match.mode, game);
+
+    if (!playerIds.includes(Number(sessionUser.id))) {
+      if (playerIds.length >= maxPlayers) {
+        send(response, 400, { ok: false, message: "Sala cheia." });
+        return;
+      }
+      playerIds.push(Number(sessionUser.id));
+    }
+
+    if (!acceptedIds.includes(Number(sessionUser.id))) {
+      acceptedIds.push(Number(sessionUser.id));
+    }
+
+    let state = {
+      ...(match.state || {}),
+      message: `${sessionUser.nickname} entrou na sala.`,
+      messageType: "success",
+    };
+
+    if (game === "bingo") {
+      state = ensureBingoPlayerState(state, sessionUser, false);
+    }
+
+    const updated = await supabaseRequest(`game_matches?id=${eq(match.id)}`, {
+      method: "PATCH",
+      body: JSON.stringify({
+        player_ids: playerIds,
+        accepted_ids: acceptedIds,
+        state,
+        updated_at: new Date().toISOString(),
+      }),
+    });
+    const usersMap = await getUsersMap(updated[0].player_ids || []);
+
+    send(response, 200, {
+      ok: true,
+      message: "Voce entrou na sala.",
+      match: serializeMatch(updated[0], sessionUser, usersMap),
+    });
+  } catch (error) {
+    logSafeError("room-join", error);
+    send(response, 500, { ok: false, message: "Nao foi possivel entrar na sala." });
   }
 }
 
@@ -1136,13 +1421,17 @@ async function handleMatchAccept(request, response) {
 
     const acceptedIds = [...new Set([...(match.accepted_ids || []).map(Number), Number(sessionUser.id)])];
     const allAccepted = (match.player_ids || []).every((userId) => acceptedIds.includes(Number(userId)));
-    const state = {
+    let state = {
       ...(match.state || {}),
       message: allAccepted
         ? "Todos entraram na sala. Aguardando o criador iniciar o jogo."
         : "Voce entrou na sala. Aguardando os outros jogadores.",
       messageType: "success",
     };
+
+    if (state.game === "bingo") {
+      state = ensureBingoPlayerState(state, sessionUser, false);
+    }
 
     const updated = await supabaseRequest(`game_matches?id=${eq(match.id)}`, {
       method: "PATCH",
@@ -1183,7 +1472,22 @@ async function handleMatchGet(request, response, matchId) {
 
     let currentMatch = match;
 
-    if (match.status === "finished" && Number(match.state?.nextRoundAt || 0) <= Date.now()) {
+    if (match.status === "active" && match.state?.game === "bingo") {
+      const state = advanceBingoDraw(match.state || {});
+      if (JSON.stringify(state) !== JSON.stringify(match.state || {})) {
+        const updated = await supabaseRequest(`game_matches?id=${eq(match.id)}`, {
+          method: "PATCH",
+          body: JSON.stringify({
+            status: state.locked ? "finished" : "active",
+            state,
+            updated_at: new Date().toISOString(),
+          }),
+        });
+        currentMatch = updated[0];
+      }
+    }
+
+    if ((match.state?.game || "hangman") === "hangman" && match.status === "finished" && Number(match.state?.nextRoundAt || 0) <= Date.now()) {
       const state = await createHangmanState(match);
       const updated = await supabaseRequest(`game_matches?id=${eq(match.id)}`, {
         method: "PATCH",
@@ -1232,7 +1536,28 @@ async function handleMatchStart(request, response, matchId) {
       return;
     }
 
-    const state = await createHangmanState(match);
+    if ((match.state?.game || "hangman") === "hangman" && (match.player_ids || []).length < Math.min(2, maxPlayersForMode(match.mode, "hangman"))) {
+      send(response, 400, { ok: false, message: "Aguarde pelo menos um jogador entrar na sala." });
+      return;
+    }
+
+    let state;
+
+    if (match.state?.game === "bingo") {
+      state = {
+        ...(match.state || {}),
+        started: true,
+        locked: false,
+        calledNumbers: [],
+        currentNumber: null,
+        nextDrawAt: Date.now() + 1000,
+        message: "Bingo iniciado. O primeiro numero sera sorteado em instantes.",
+        messageType: "success",
+      };
+    } else {
+      state = await createHangmanState(match);
+    }
+
     const updated = await supabaseRequest(`game_matches?id=${eq(match.id)}`, {
       method: "PATCH",
       body: JSON.stringify({
@@ -1403,6 +1728,105 @@ async function handleMatchGuessWord(request, response, matchId) {
   }
 }
 
+async function handleBingoAction(request, response, matchId) {
+  try {
+    const sessionUser = await requireSessionUser(request, response);
+
+    if (!sessionUser) {
+      return;
+    }
+
+    const match = await getMatchForUser(matchId, sessionUser.id);
+
+    if (!match || match.state?.game !== "bingo") {
+      send(response, 404, { ok: false, message: "Sala de Bingo nao encontrada." });
+      return;
+    }
+
+    const body = await parseJsonBody(request);
+    const action = String(body.action || "");
+    let state = ensureBingoPlayerState(match.state || {}, sessionUser, false);
+    const userId = String(sessionUser.id);
+    const playerCard = state.playerCards[userId];
+
+    if (action === "reroll") {
+      if (match.status !== "pending") {
+        send(response, 400, { ok: false, message: "A cartela so pode ser trocada antes de iniciar." });
+        return;
+      }
+      playerCard.card = createBingoCard();
+      playerCard.marked = [];
+      playerCard.confirmed = false;
+      state.message = `${sessionUser.nickname} trocou a cartela.`;
+      state.messageType = "success";
+    } else if (action === "confirm") {
+      if (match.status !== "pending") {
+        send(response, 400, { ok: false, message: "A cartela so pode ser confirmada antes de iniciar." });
+        return;
+      }
+      playerCard.confirmed = true;
+      state.message = `${sessionUser.nickname} confirmou a cartela.`;
+      state.messageType = "success";
+    } else if (action === "mark") {
+      if (match.status !== "active" || state.locked) {
+        send(response, 400, { ok: false, message: "O Bingo ainda nao esta ativo." });
+        return;
+      }
+
+      const number = Number(body.number);
+      const called = (state.calledNumbers || []).map(Number);
+
+      if (!called.includes(number)) {
+        send(response, 400, { ok: false, message: "Esse numero ainda nao foi sorteado." });
+        return;
+      }
+
+      if (!playerCard.card.map(Number).includes(number)) {
+        send(response, 400, { ok: false, message: "Esse numero nao esta na sua cartela." });
+        return;
+      }
+
+      if (!playerCard.marked.map(Number).includes(number)) {
+        playerCard.marked = [...(playerCard.marked || []), number];
+      }
+
+      if (hasBingoWin(playerCard, state.winCondition)) {
+        state.locked = true;
+        state.winnerUserId = Number(sessionUser.id);
+        state.winnerName = sessionUser.nickname;
+        state.message = `BINGO! ${sessionUser.nickname} venceu.`;
+        state.messageType = "success";
+        await awardScoreForUser(sessionUser.id, {
+          game: "bingo",
+          mode: "bingo",
+          difficulty: state.winCondition || "line",
+        });
+      } else {
+        state.message = `${sessionUser.nickname} marcou o numero ${number}.`;
+        state.messageType = "success";
+      }
+    } else {
+      send(response, 400, { ok: false, message: "Acao invalida." });
+      return;
+    }
+
+    const updated = await supabaseRequest(`game_matches?id=${eq(match.id)}`, {
+      method: "PATCH",
+      body: JSON.stringify({
+        status: state.locked ? "finished" : match.status,
+        state,
+        updated_at: new Date().toISOString(),
+      }),
+    });
+    const usersMap = await getUsersMap(updated[0].player_ids || []);
+
+    send(response, 200, { ok: true, match: serializeMatch(updated[0], sessionUser, usersMap) });
+  } catch (error) {
+    logSafeError("bingo-action", error);
+    send(response, 500, { ok: false, message: "Nao foi possivel atualizar o Bingo." });
+  }
+}
+
 async function handleChangePassword(request, response) {
   try {
     const token = request.headers.authorization?.replace(/^Bearer\s+/i, "");
@@ -1513,6 +1937,16 @@ const server = http.createServer(async (request, response) => {
     return;
   }
 
+  if (request.method === "POST" && url.pathname === "/api/rooms/create") {
+    handleRoomCreate(request, response);
+    return;
+  }
+
+  if (request.method === "POST" && url.pathname === "/api/rooms/join") {
+    handleRoomJoin(request, response);
+    return;
+  }
+
   if (request.method === "POST" && url.pathname === "/api/matches/invite") {
     handleMatchInvite(request, response);
     return;
@@ -1541,6 +1975,13 @@ const server = http.createServer(async (request, response) => {
 
   if (request.method === "POST" && matchGuessWord) {
     handleMatchGuessWord(request, response, Number(matchGuessWord[1]));
+    return;
+  }
+
+  const bingoAction = url.pathname.match(/^\/api\/bingo\/(\d+)\/action$/);
+
+  if (request.method === "POST" && bingoAction) {
+    handleBingoAction(request, response, Number(bingoAction[1]));
     return;
   }
 

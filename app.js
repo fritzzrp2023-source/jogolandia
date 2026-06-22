@@ -167,6 +167,12 @@ let remoteMatchTimer = null;
 let activeRemoteMatchId = null;
 let lastNotificationCount = 0;
 let localNextRoundTimer = null;
+let selectedGameType = "hangman";
+let bingo = null;
+let bingoSetupFriends = [];
+let bingoInviteIds = [];
+let bingoTimer = null;
+let lastBingoWinnerKey = "";
 
 function onlyDigits(value) {
   return String(value || "").replace(/\D/g, "");
@@ -396,16 +402,49 @@ function showPanel(name) {
 function showGamesHome() {
   stopRemotePolling();
   stopLocalNextRound();
+  stopBingoPolling();
   document.querySelector("#gamesGrid").hidden = false;
+  document.querySelector("#roomChoice").hidden = true;
   document.querySelector("#hangmanSetup").hidden = true;
   document.querySelector("#hangmanPanel").hidden = true;
+  document.querySelector("#bingoSetup").hidden = true;
+  document.querySelector("#bingoPanel").hidden = true;
+}
+
+function showRoomChoice(gameType) {
+  selectedGameType = gameType;
+  document.querySelector("#gamesGrid").hidden = true;
+  document.querySelector("#roomChoice").hidden = false;
+  document.querySelector("#hangmanSetup").hidden = true;
+  document.querySelector("#hangmanPanel").hidden = true;
+  document.querySelector("#bingoSetup").hidden = true;
+  document.querySelector("#bingoPanel").hidden = true;
+  document.querySelector("#roomChoiceEyebrow").textContent = gameType === "bingo" ? "Bingo" : "Jogo da Forca";
+  document.querySelector("#roomChoiceTitle").textContent = gameType === "bingo" ? "Criar ou entrar em uma sala de Bingo" : "Criar ou entrar em uma sala da Forca";
+  document.querySelector("#joinRoomCode").value = "";
+  setMessage(document.querySelector("#joinRoomMessage"), "");
 }
 
 function prepareHangmanHome() {
   document.querySelector("#gamesGrid").hidden = true;
+  document.querySelector("#roomChoice").hidden = true;
   document.querySelector("#hangmanSetup").hidden = false;
   document.querySelector("#hangmanPanel").hidden = true;
+  document.querySelector("#bingoSetup").hidden = true;
+  document.querySelector("#bingoPanel").hidden = true;
+  document.querySelector("#hangmanRoomCodeBox").hidden = true;
   loadSetupFriends();
+}
+
+function prepareBingoHome() {
+  document.querySelector("#gamesGrid").hidden = true;
+  document.querySelector("#roomChoice").hidden = true;
+  document.querySelector("#hangmanSetup").hidden = true;
+  document.querySelector("#hangmanPanel").hidden = true;
+  document.querySelector("#bingoSetup").hidden = false;
+  document.querySelector("#bingoPanel").hidden = true;
+  document.querySelector("#bingoRoomCodeBox").hidden = true;
+  loadBingoSetupFriends();
 }
 
 async function loadProfile() {
@@ -498,6 +537,36 @@ async function loadSetupFriends() {
   }
 }
 
+async function loadBingoSetupFriends() {
+  const list = document.querySelector("#bingoFriendsList");
+  list.innerHTML = '<p class="muted-label">Carregando amigos...</p>';
+  bingoInviteIds = [];
+
+  try {
+    const result = await apiRequest("/api/friends", { method: "GET" });
+    bingoSetupFriends = result.friends.filter((friend) => friend.status === "accepted");
+
+    if (!bingoSetupFriends.length) {
+      list.innerHTML = '<p class="muted-label">Nenhum amigo aceito ainda. Voce ainda pode criar sala por codigo.</p>';
+      return;
+    }
+
+    list.innerHTML = bingoSetupFriends.map((friend) => `
+      <div class="friend-check">
+        <span>
+          <strong>${friend.nickname}</strong>
+          <small>ID ${friend.publicId} - ${friend.online ? "online" : "offline"}</small>
+        </span>
+        <button type="button" data-bingo-invite="${friend.id}" ${friend.online ? "" : "disabled"}>
+          ${friend.online ? "Convidar" : "Offline"}
+        </button>
+      </div>
+    `).join("");
+  } catch (error) {
+    list.innerHTML = `<p class="form-message error">${error.message}</p>`;
+  }
+}
+
 function renderNotifications(data) {
   const list = document.querySelector("#notificationList");
   const friendInvites = data.friendInvites || [];
@@ -523,7 +592,7 @@ function renderNotifications(data) {
     <article class="notification-item highlight">
       <div>
         <strong>Convite de partida</strong>
-        <span>${match.modeLabel} na forca. Aceite para entrar na sala com seus amigos.</span>
+        <span>${(match.game || match.state?.game) === "bingo" ? "Bingo" : `${match.modeLabel} na forca`}. Aceite para entrar na sala com seus amigos.</span>
       </div>
       <button type="button" data-accept-match="${match.id}">Aceitar partida</button>
     </article>
@@ -626,8 +695,54 @@ document.querySelector("#backToGamesFromAccount").addEventListener("click", () =
 document.querySelector("#backToGamesFromFriends").addEventListener("click", () => showPanel("games"));
 document.querySelector("#backToGamesFromNotifications").addEventListener("click", () => showPanel("games"));
 document.querySelector("#backToGamesFromRanking").addEventListener("click", () => showPanel("games"));
-document.querySelector("#openHangmanGame").addEventListener("click", () => prepareHangmanHome());
+document.querySelector("#openHangmanGame").addEventListener("click", () => showRoomChoice("hangman"));
+document.querySelector("#openBingoGame").addEventListener("click", () => showRoomChoice("bingo"));
+document.querySelector("#closeRoomChoice").addEventListener("click", () => showGamesHome());
+document.querySelector("#createGameRoom").addEventListener("click", () => {
+  if (selectedGameType === "bingo") {
+    prepareBingoHome();
+    return;
+  }
+  prepareHangmanHome();
+});
 document.querySelector("#closeHangmanSetup").addEventListener("click", () => showGamesHome());
+document.querySelector("#closeBingoSetup").addEventListener("click", () => showGamesHome());
+
+async function copyText(value) {
+  try {
+    await navigator.clipboard.writeText(value);
+    showToast("Codigo copiado.");
+  } catch {
+    showToast(`Codigo da sala: ${value}`);
+  }
+}
+
+document.querySelector("#joinGameRoom").addEventListener("click", async () => {
+  const message = document.querySelector("#joinRoomMessage");
+  const roomCode = document.querySelector("#joinRoomCode").value.trim().toUpperCase();
+
+  if (!roomCode) {
+    setMessage(message, "Digite o codigo da sala.", "error");
+    return;
+  }
+
+  setMessage(message, "Entrando na sala...", "success");
+
+  try {
+    const result = await apiRequest("/api/rooms/join", {
+      method: "POST",
+      body: { roomCode },
+    });
+    showToast(result.message);
+    showRemoteMatch(result.match);
+  } catch (error) {
+    setMessage(message, error.message, "error");
+  }
+});
+
+document.querySelector("#copyHangmanRoomCode").addEventListener("click", () => copyText(document.querySelector("#hangmanRoomCode").textContent));
+document.querySelector("#copyBingoRoomCode").addEventListener("click", () => copyText(document.querySelector("#bingoRoomCode").textContent));
+document.querySelector("#copyActiveBingoCode").addEventListener("click", () => copyText(document.querySelector("#activeBingoCode").textContent));
 
 document.addEventListener("click", (event) => {
   if (!userMenu.hidden && !event.target.closest(".user-box")) {
@@ -844,12 +959,45 @@ document.querySelector("#setupFriendsList").addEventListener("click", (event) =>
   setMessage(document.querySelector("#setupMessage"), `${setupInviteIds.length} amigo(s) selecionado(s).`, "success");
 });
 
+document.querySelector("#bingoFriendsList").addEventListener("click", (event) => {
+  const button = event.target.closest("[data-bingo-invite]");
+  if (!button) return;
+
+  const friendId = Number(button.dataset.bingoInvite);
+  const alreadySelected = bingoInviteIds.includes(friendId);
+  bingoInviteIds = alreadySelected
+    ? bingoInviteIds.filter((id) => id !== friendId)
+    : [...bingoInviteIds, friendId];
+
+  button.classList.toggle("selected", !alreadySelected);
+  button.textContent = alreadySelected ? "Convidar" : "Convidado";
+  setMessage(document.querySelector("#bingoSetupMessage"), `${bingoInviteIds.length} amigo(s) selecionado(s).`, "success");
+});
+
 function getSelectedHangmanConfig() {
   const difficulty = document.querySelector('input[name="difficulty"]:checked')?.value || "normal";
   const mode = document.querySelector('input[name="gameMode"]:checked')?.value || "solo";
   const invitedFriends = setupFriends.filter((friend) => setupInviteIds.includes(Number(friend.id)));
 
-  return { difficulty, mode, invitedFriends };
+  return {
+    game: "hangman",
+    difficulty,
+    mode,
+    accessMode: document.querySelector('input[name="hangmanAccess"]:checked')?.value || "code",
+    invitedFriends,
+  };
+}
+
+function getSelectedBingoConfig() {
+  return {
+    game: "bingo",
+    difficulty: "normal",
+    mode: "bingo",
+    accessMode: document.querySelector('input[name="bingoAccess"]:checked')?.value || "code",
+    drawSeconds: Math.max(3, Math.min(60, Number(document.querySelector("#bingoDrawSeconds").value || 8))),
+    winCondition: document.querySelector('input[name="bingoWin"]:checked')?.value || "line",
+    invitedFriends: bingoSetupFriends.filter((friend) => bingoInviteIds.includes(Number(friend.id))),
+  };
 }
 
 function createPlayers(mode, invitedFriends = []) {
@@ -873,6 +1021,11 @@ function stopRemotePolling() {
   activeRemoteMatchId = null;
 }
 
+function stopBingoPolling() {
+  window.clearInterval(bingoTimer);
+  bingoTimer = null;
+}
+
 function stopLocalNextRound() {
   window.clearTimeout(localNextRoundTimer);
   localNextRoundTimer = null;
@@ -894,9 +1047,101 @@ function openHangmanMatchView() {
   dashboardEyebrow.textContent = "Forca";
   dashboardTitle.textContent = "Sala de jogo";
   document.querySelector("#gamesGrid").hidden = true;
+  document.querySelector("#roomChoice").hidden = true;
   document.querySelector("#hangmanSetup").hidden = true;
   document.querySelector("#hangmanPanel").hidden = false;
+  document.querySelector("#bingoSetup").hidden = true;
+  document.querySelector("#bingoPanel").hidden = true;
   window.scrollTo({ top: 0, behavior: "smooth" });
+}
+
+function openBingoMatchView() {
+  Object.entries(views).forEach(([key, view]) => {
+    view.hidden = key !== "games";
+    view.classList.toggle("active", key === "games");
+  });
+  userMenu.hidden = true;
+  userMenuButton.setAttribute("aria-expanded", "false");
+  dashboardEyebrow.textContent = "Bingo";
+  dashboardTitle.textContent = "Sala de Bingo";
+  document.querySelector("#gamesGrid").hidden = true;
+  document.querySelector("#roomChoice").hidden = true;
+  document.querySelector("#hangmanSetup").hidden = true;
+  document.querySelector("#hangmanPanel").hidden = true;
+  document.querySelector("#bingoSetup").hidden = true;
+  document.querySelector("#bingoPanel").hidden = false;
+  window.scrollTo({ top: 0, behavior: "smooth" });
+}
+
+function renderBingoCard(playerCard, match) {
+  const grid = document.querySelector("#bingoCardGrid");
+
+  if (!playerCard?.card?.length) {
+    grid.innerHTML = '<p class="muted-label">Cartela sendo preparada...</p>';
+    return;
+  }
+
+  const called = new Set((match.state?.calledNumbers || []).map(Number));
+  const marked = new Set((playerCard.marked || []).map(Number));
+  const canMark = match.status === "active" && !match.state?.locked;
+  grid.innerHTML = playerCard.card.map((number) => `
+    <button type="button" data-bingo-number="${number}" class="${marked.has(Number(number)) ? "marked" : ""}" ${canMark && called.has(Number(number)) ? "" : "disabled"}>
+      ${number}
+    </button>
+  `).join("");
+}
+
+function showBingoMatch(match) {
+  const state = match.state || {};
+  const playerCard = state.playerCards?.[String(currentUser.id)];
+  bingo = { remoteMatchId: match.id, match };
+  openBingoMatchView();
+  document.querySelector("#activeBingoCode").textContent = match.roomCode || state.roomCode || "----";
+  document.querySelector("#bingoSummary").innerHTML = `
+    <span>${state.winCondition === "full" ? "Cartela cheia" : "Fileira"}</span>
+    <span>${state.drawSeconds || 8}s</span>
+    <span>${match.status === "pending" ? "Aguardando" : match.status === "active" ? "Em jogo" : "Encerrado"}</span>
+  `;
+  document.querySelector("#startBingoMatch").hidden = !match.canStart || match.status !== "pending";
+  document.querySelector("#startBingoMatch").dataset.matchId = match.id;
+  document.querySelector("#rerollBingoCard").disabled = match.status !== "pending";
+  document.querySelector("#confirmBingoCard").disabled = match.status !== "pending" || Boolean(playerCard?.confirmed);
+  document.querySelector("#drawnNumbers").innerHTML = (state.calledNumbers || []).length
+    ? state.calledNumbers.slice(-20).map((number) => `<span>${number}</span>`).join("")
+    : '<p class="muted-label">Os numeros sorteados aparecerao aqui.</p>';
+  document.querySelector("#bingoPlayers").innerHTML = match.players.map((player) => {
+    const card = state.playerCards?.[String(player.id)];
+    const status = match.status === "pending"
+      ? card?.confirmed ? "Cartela confirmada" : "Escolhendo cartela"
+      : `${card?.marked?.length || 0} numero(s) marcado(s)`;
+    return `
+      <div class="${Number(player.id) === Number(state.winnerUserId) ? "active-score" : ""}">
+        <strong>${player.nickname}</strong>
+        <span>${status}</span>
+      </div>
+    `;
+  }).join("");
+  renderBingoCard(playerCard, match);
+  setMessage(document.querySelector("#bingoMessage"), state.message || "Sala de Bingo aberta.", state.messageType || "success");
+
+  const winner = document.querySelector("#bingoWinner");
+  const winnerKey = state.winnerName ? `${match.id}-${state.winnerName}-${state.calledNumbers?.length || 0}` : "";
+  if (state.winnerName && winnerKey !== lastBingoWinnerKey) {
+    lastBingoWinnerKey = winnerKey;
+    winner.hidden = false;
+    winner.textContent = `BINGO! ${state.winnerName}`;
+    window.setTimeout(() => { winner.hidden = true; }, 4500);
+  } else if (!state.winnerName) {
+    winner.hidden = true;
+  }
+
+  startBingoPolling(match.id);
+}
+
+function startBingoPolling(matchId) {
+  stopRemotePolling();
+  window.clearInterval(bingoTimer);
+  bingoTimer = window.setInterval(() => loadRemoteMatch(matchId, false), 900);
 }
 
 function showWaitingMatch(match) {
@@ -906,9 +1151,10 @@ function showWaitingMatch(match) {
   document.querySelector("#wordGuess").value = "";
   document.querySelector("#turnLabel").textContent = "Aguardando inicio da partida";
   document.querySelector("#wordSlots").innerHTML = "<span>...</span>";
-  document.querySelector("#letterKeyboard").innerHTML = match.canStart
-    ? `<button class="room-start-button" type="button" data-start-match="${match.id}">Iniciar jogo</button>`
-    : "";
+  document.querySelector("#letterKeyboard").innerHTML = `
+    ${match.roomCode ? `<button class="room-start-button" type="button" data-copy-room="${match.roomCode}">Copiar codigo ${match.roomCode}</button>` : ""}
+    ${match.canStart ? `<button class="room-start-button" type="button" data-start-match="${match.id}">Iniciar jogo</button>` : ""}
+  `;
   document.querySelector("#teamScore").innerHTML = match.playerIds.map((userId) => {
     const accepted = match.acceptedIds.includes(Number(userId));
     const player = match.players?.find((user) => Number(user.id) === Number(userId));
@@ -923,6 +1169,7 @@ function showWaitingMatch(match) {
   document.querySelector("#matchSummary").innerHTML = `
     <span>${match.modeLabel}</span>
     <span>${difficultyRules[match.difficulty]?.label || "Normal"}</span>
+    ${match.roomCode ? `<span>Codigo ${match.roomCode}</span>` : ""}
     <span>Aguardando</span>
   `;
   document.querySelector("#guessWordButton").disabled = true;
@@ -933,6 +1180,8 @@ function showWaitingMatch(match) {
       ? "Todos entraram na sala. Clique em Iniciar jogo."
       : match.waitingFor.length
         ? `Aguardando entrar: ${match.waitingFor.map((user) => user.nickname).join(", ")}.`
+        : match.roomCode && match.playerIds.length < 2
+          ? `Compartilhe o codigo ${match.roomCode} para outro jogador entrar.`
         : "Todos entraram na sala. Aguardando o criador iniciar o jogo.",
     "success",
   );
@@ -940,6 +1189,11 @@ function showWaitingMatch(match) {
 }
 
 function showRemoteMatch(match) {
+  if ((match.game || match.state?.game) === "bingo") {
+    showBingoMatch(match);
+    return;
+  }
+
   if (match.status === "pending") {
     showWaitingMatch(match);
     return;
@@ -987,7 +1241,7 @@ async function startSharedHangman(config) {
   const message = document.querySelector("#setupMessage");
   const requiredFriends = config.mode === "teams" ? 3 : 1;
 
-  if (config.invitedFriends.length !== requiredFriends) {
+  if (config.accessMode === "invite" && config.invitedFriends.length !== requiredFriends) {
     setMessage(
       message,
       config.mode === "teams" ? "Para 2x2, selecione exatamente 3 amigos online." : "Para 1x1, selecione exatamente 1 amigo online.",
@@ -999,15 +1253,21 @@ async function startSharedHangman(config) {
   setMessage(message, "Enviando convite de partida...", "success");
 
   try {
-    const result = await apiRequest("/api/matches/invite", {
+    const result = await apiRequest("/api/rooms/create", {
       method: "POST",
       body: {
+        game: "hangman",
         mode: config.mode,
         difficulty: config.difficulty,
+        accessMode: config.accessMode,
         friendIds: config.invitedFriends.map((friend) => friend.id),
       },
     });
     showToast(result.message);
+    if (result.match.roomCode) {
+      document.querySelector("#hangmanRoomCode").textContent = result.match.roomCode;
+      document.querySelector("#hangmanRoomCodeBox").hidden = false;
+    }
     showRemoteMatch(result.match);
     await loadNotifications(false);
   } catch (error) {
@@ -1229,10 +1489,49 @@ document.querySelector("#startConfiguredHangman").addEventListener("click", () =
   startHangman(config);
 });
 
+document.querySelector("#createBingoRoom").addEventListener("click", async () => {
+  const config = getSelectedBingoConfig();
+  const message = document.querySelector("#bingoSetupMessage");
+
+  if (config.accessMode === "invite" && !config.invitedFriends.length) {
+    setMessage(message, "Selecione pelo menos um amigo online ou use entrada por codigo.", "error");
+    return;
+  }
+
+  setMessage(message, "Criando sala de Bingo...", "success");
+
+  try {
+    const result = await apiRequest("/api/rooms/create", {
+      method: "POST",
+      body: {
+        game: "bingo",
+        mode: "bingo",
+        difficulty: "normal",
+        accessMode: config.accessMode,
+        drawSeconds: config.drawSeconds,
+        winCondition: config.winCondition,
+        friendIds: config.invitedFriends.map((friend) => friend.id),
+      },
+    });
+    document.querySelector("#bingoRoomCode").textContent = result.match.roomCode;
+    document.querySelector("#bingoRoomCodeBox").hidden = false;
+    showToast(result.message);
+    showBingoMatch(result.match);
+  } catch (error) {
+    setMessage(message, error.message, "error");
+  }
+});
+
 document.querySelector("#letterKeyboard").addEventListener("click", (event) => {
   const startButton = event.target.closest("[data-start-match]");
   if (startButton) {
     startRemoteMatch(Number(startButton.dataset.startMatch));
+    return;
+  }
+
+  const copyButton = event.target.closest("[data-copy-room]");
+  if (copyButton) {
+    copyText(copyButton.dataset.copyRoom);
     return;
   }
 
@@ -1249,6 +1548,37 @@ async function startRemoteMatch(matchId) {
     setMessage(document.querySelector("#hangmanMessage"), error.message, "error");
   }
 }
+
+async function sendBingoAction(action, extra = {}) {
+  if (!bingo?.remoteMatchId) return;
+
+  try {
+    const result = await apiRequest(`/api/bingo/${bingo.remoteMatchId}/action`, {
+      method: "POST",
+      body: { action, ...extra },
+    });
+    showBingoMatch(result.match);
+  } catch (error) {
+    setMessage(document.querySelector("#bingoMessage"), error.message, "error");
+  }
+}
+
+document.querySelector("#startBingoMatch").addEventListener("click", async () => {
+  const matchId = Number(document.querySelector("#startBingoMatch").dataset.matchId);
+  if (matchId) await startRemoteMatch(matchId);
+});
+
+document.querySelector("#rerollBingoCard").addEventListener("click", () => sendBingoAction("reroll"));
+document.querySelector("#confirmBingoCard").addEventListener("click", () => sendBingoAction("confirm"));
+document.querySelector("#bingoCardGrid").addEventListener("click", (event) => {
+  const button = event.target.closest("[data-bingo-number]");
+  if (button) sendBingoAction("mark", { number: Number(button.dataset.bingoNumber) });
+});
+
+document.querySelector("#closeBingoGame").addEventListener("click", () => {
+  stopBingoPolling();
+  showGamesHome();
+});
 
 document.querySelector("#guessWordButton").addEventListener("click", async () => {
   const guess = normalizeText(document.querySelector("#wordGuess").value);

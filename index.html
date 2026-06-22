@@ -119,7 +119,36 @@
             <button class="game-cover-button" type="button" id="openHangmanGame" aria-label="Abrir Jogo da Forca">
               <img src="assets/hangman-card.png" alt="Jogo da Forca" />
             </button>
+            <button class="game-cover-button" type="button" id="openBingoGame" aria-label="Abrir Bingo">
+              <img src="assets/bingo-card.png" alt="Bingo" />
+            </button>
           </div>
+
+          <section class="hangman-setup" id="roomChoice" hidden>
+            <div class="game-toolbar">
+              <div>
+                <p class="eyebrow" id="roomChoiceEyebrow">Sala de jogo</p>
+                <h2 id="roomChoiceTitle">Como voce quer jogar?</h2>
+              </div>
+              <button class="link-button" id="closeRoomChoice" type="button">Voltar aos jogos</button>
+            </div>
+
+            <div class="setup-grid room-choice-grid">
+              <section class="profile-card room-action-card">
+                <h3>Criar nova sala</h3>
+                <p class="muted-label">Voce configura a partida, convida amigos ou libera entrada por codigo.</p>
+                <button class="primary-button" id="createGameRoom" type="button">Criar sala</button>
+              </section>
+
+              <section class="profile-card room-action-card">
+                <h3>Entrar com codigo</h3>
+                <p class="muted-label">Digite o codigo que o dono da sala enviou.</p>
+                <input id="joinRoomCode" type="text" placeholder="Codigo da sala" autocomplete="off" />
+                <button class="primary-button" id="joinGameRoom" type="button">Entrar na sala</button>
+                <p class="form-message" id="joinRoomMessage" role="status"></p>
+              </section>
+            </div>
+          </section>
 
           <section class="hangman-setup" id="hangmanSetup" hidden>
             <div class="hangman-cover">
@@ -185,6 +214,27 @@
               </section>
 
               <section class="profile-card">
+                <h3>Entrada na sala</h3>
+                <div class="option-grid" role="group" aria-label="Entrada na sala">
+                  <label class="option-card">
+                    <input type="radio" name="hangmanAccess" value="code" checked />
+                    <span>Codigo</span>
+                    <small>Mostra um ID para outros jogadores entrarem.</small>
+                  </label>
+                  <label class="option-card">
+                    <input type="radio" name="hangmanAccess" value="invite" />
+                    <span>Convite</span>
+                    <small>Somente amigos convidados entram.</small>
+                  </label>
+                </div>
+                <div class="room-code-box" id="hangmanRoomCodeBox" hidden>
+                  <span>Codigo da sala</span>
+                  <strong id="hangmanRoomCode">----</strong>
+                  <button class="link-button" id="copyHangmanRoomCode" type="button">Copiar</button>
+                </div>
+              </section>
+
+              <section class="profile-card">
                 <h3>Amigos convidados</h3>
                 <p class="muted-label">Veja quem esta online e convide para entrar na sua sala.</p>
                 <div class="setup-friends" id="setupFriendsList"></div>
@@ -205,6 +255,89 @@
 
             <button class="primary-button start-game-button" id="startConfiguredHangman" type="button">Continuar</button>
             <p class="form-message" id="setupMessage" role="status"></p>
+          </section>
+
+          <section class="hangman-setup" id="bingoSetup" hidden>
+            <div class="hangman-cover bingo-cover">
+              <img src="assets/bingo-card.png" alt="Bingo" />
+              <div>
+                <p class="eyebrow">Novo jogo</p>
+                <h2>Bingo</h2>
+                <p>Crie uma sala, escolha o tempo de sorteio e jogue por linha completa ou cartela cheia.</p>
+              </div>
+            </div>
+
+            <div class="game-toolbar">
+              <div>
+                <p class="eyebrow">Configurar sala</p>
+                <h2>Prepare o Bingo</h2>
+              </div>
+              <button class="link-button" id="closeBingoSetup" type="button">Voltar aos jogos</button>
+            </div>
+
+            <div class="setup-grid">
+              <section class="profile-card">
+                <h3>Entrada na sala</h3>
+                <div class="option-grid">
+                  <label class="option-card">
+                    <input type="radio" name="bingoAccess" value="code" checked />
+                    <span>Codigo</span>
+                    <small>Qualquer amigo com o codigo pode entrar.</small>
+                  </label>
+                  <label class="option-card">
+                    <input type="radio" name="bingoAccess" value="invite" />
+                    <span>Convite</span>
+                    <small>Voce escolhe os amigos online.</small>
+                  </label>
+                </div>
+                <div class="room-code-box" id="bingoRoomCodeBox" hidden>
+                  <span>Codigo da sala</span>
+                  <strong id="bingoRoomCode">----</strong>
+                  <button class="link-button" id="copyBingoRoomCode" type="button">Copiar</button>
+                </div>
+              </section>
+
+              <section class="profile-card">
+                <h3>Sorteio</h3>
+                <label class="field">
+                  <span>Tempo entre numeros</span>
+                  <input id="bingoDrawSeconds" type="number" min="3" max="60" value="8" />
+                  <small class="field-message">De 3 a 60 segundos.</small>
+                </label>
+                <div class="option-grid">
+                  <label class="option-card">
+                    <input type="radio" name="bingoWin" value="line" checked />
+                    <span>Fileira</span>
+                    <small>Horizontal, vertical ou diagonal.</small>
+                  </label>
+                  <label class="option-card">
+                    <input type="radio" name="bingoWin" value="full" />
+                    <span>Cartela cheia</span>
+                    <small>Vence quem marcar os 25 numeros.</small>
+                  </label>
+                </div>
+              </section>
+
+              <section class="profile-card">
+                <h3>Amigos convidados</h3>
+                <p class="muted-label">Opcional para sala por codigo. Necessario se escolher convite.</p>
+                <div class="setup-friends" id="bingoFriendsList"></div>
+              </section>
+
+              <section class="profile-card rules-card">
+                <h3>Regras do Bingo</h3>
+                <ul>
+                  <li>O dono da sala escolhe o tempo de sorteio.</li>
+                  <li>Antes de iniciar, cada jogador pode trocar ou confirmar sua cartela.</li>
+                  <li>Os numeros sorteados aparecem acima da cartela.</li>
+                  <li>O jogador deve clicar nos numeros sorteados que tiver na cartela.</li>
+                  <li>Ao completar a regra escolhida, aparece BINGO para todos.</li>
+                </ul>
+              </section>
+            </div>
+
+            <button class="primary-button start-game-button" id="createBingoRoom" type="button">Criar sala de Bingo</button>
+            <p class="form-message" id="bingoSetupMessage" role="status"></p>
           </section>
 
           <section class="hangman-panel" id="hangmanPanel" hidden>
@@ -248,6 +381,47 @@
               <button class="link-button" id="newHangmanRound" type="button">Nova palavra</button>
               <button class="link-button" id="changeHangmanConfig" type="button">Configurar novamente</button>
               <button class="link-button" id="closeHangmanGame" type="button">Voltar aos jogos</button>
+            </div>
+          </section>
+
+          <section class="hangman-panel bingo-panel" id="bingoPanel" hidden>
+            <div class="game-toolbar">
+              <div>
+                <p class="eyebrow">Bingo</p>
+                <h2 id="bingoPanelTitle">Sala de Bingo</h2>
+              </div>
+              <div class="match-summary" id="bingoSummary"></div>
+            </div>
+
+            <div class="bingo-room-bar">
+              <div class="room-code-box">
+                <span>Codigo da sala</span>
+                <strong id="activeBingoCode">----</strong>
+                <button class="link-button" id="copyActiveBingoCode" type="button">Copiar</button>
+              </div>
+              <button class="primary-button" id="startBingoMatch" type="button">Iniciar jogo</button>
+            </div>
+
+            <div class="drawn-numbers" id="drawnNumbers"></div>
+            <div class="bingo-board-layout">
+              <section class="profile-card">
+                <div class="bingo-card-actions">
+                  <button class="link-button" id="rerollBingoCard" type="button">X trocar cartela</button>
+                  <button class="link-button" id="confirmBingoCard" type="button">Confirmar cartela</button>
+                </div>
+                <div class="bingo-card-grid" id="bingoCardGrid"></div>
+              </section>
+              <section class="profile-card">
+                <h3>Jogadores</h3>
+                <div class="team-score" id="bingoPlayers"></div>
+                <p class="form-message" id="bingoMessage" role="status"></p>
+              </section>
+            </div>
+
+            <div class="bingo-winner" id="bingoWinner" hidden>BINGO!</div>
+
+            <div class="game-footer">
+              <button class="link-button" id="closeBingoGame" type="button">Voltar aos jogos</button>
             </div>
           </section>
         </section>
