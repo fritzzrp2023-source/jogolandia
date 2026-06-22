@@ -175,9 +175,28 @@ function getPublicId(user) {
 }
 
 const hangmanWords = {
-  easy: ["amizade", "equipe", "desafio", "segredo", "palavra", "jogador", "vitoria", "rodada", "dupla", "missao", "atalho", "memoria"],
-  normal: ["campeonato", "controle", "tabuleiro", "aventura", "partida", "estrategia", "conquista", "diversao", "energia", "convite", "ranking", "resposta"],
-  hard: ["raciocinio", "colaboracao", "comunicacao", "sobrevivencia", "inteligencia", "competitividade", "entretenimento", "planejamento", "concentracao", "persistencia"],
+  easy: [
+    "amizade", "equipe", "desafio", "segredo", "palavra", "jogador", "vitoria", "rodada", "dupla", "missao",
+    "atalho", "memoria", "banana", "janela", "escola", "camisa", "mochila", "cidade", "ponte", "praia",
+    "livro", "caneta", "teclado", "mouse", "boneco", "pipoca", "estrela", "planeta", "futebol", "corrida",
+    "cozinha", "familia", "amigo", "brilho", "sonho", "risada", "tempo", "chuva", "vento", "barco",
+    "floresta", "castelo", "mercado", "musica", "danca", "pintura", "lanche", "viagem", "jardim", "tesouro",
+  ],
+  normal: [
+    "campeonato", "controle", "tabuleiro", "aventura", "partida", "estrategia", "conquista", "diversao", "energia", "convite",
+    "ranking", "resposta", "misterio", "labirinto", "biblioteca", "montanha", "cachoeira", "telefone", "computador", "internet",
+    "aplicativo", "personagem", "fantasia", "objetivo", "diamante", "carteira", "bicicleta", "passagem", "hospital", "fazenda",
+    "universo", "galaxia", "planilha", "controle", "amizades", "campeao", "torneio", "desenho", "historia", "capitulo",
+    "explorador", "charada", "pergunta", "resposta", "seguranca", "arquivo", "mensagem", "conexao", "velocidade", "pontuacao",
+    "lideranca", "parceria", "criatividade", "rivalidade", "objetivos", "premiacao", "surpresa", "coragem", "talento", "vencedor",
+  ],
+  hard: [
+    "raciocinio", "colaboracao", "comunicacao", "sobrevivencia", "inteligencia", "competitividade", "entretenimento", "planejamento", "concentracao", "persistencia",
+    "responsabilidade", "desenvolvimento", "transformacao", "administracao", "multiplicacao", "programacao", "infraestrutura", "criptografia", "sincronizacao", "autenticacao",
+    "descentralizacao", "extraordinario", "incompatibilidade", "profissionalismo", "interatividade", "personalidade", "representacao", "possibilidade", "conhecimento", "aprendizagem",
+    "coordenacao", "comportamento", "especialidade", "investigacao", "arquitetura", "laboratorio", "observatorio", "meteorologia", "arqueologia", "fotografia",
+    "enciclopedia", "constelacao", "protagonista", "imprevisivel", "independencia", "solidariedade", "organizacao", "experimentacao", "classificacao", "participacao",
+  ],
 };
 
 const difficultyRules = {
@@ -762,7 +781,10 @@ function buildHangmanPlayers(mode, playerIds, usersMap) {
 async function createHangmanState(match) {
   const usersMap = await getUsersMap(match.player_ids);
   const words = hangmanWords[match.difficulty] || hangmanWords.normal;
-  const word = words[crypto.randomInt(words.length)];
+  const previousWord = match.state?.word;
+  const candidates = words.filter((item) => item !== previousWord);
+  const wordList = candidates.length ? candidates : words;
+  const word = wordList[crypto.randomInt(wordList.length)];
   const rules = difficultyRules[match.difficulty] || difficultyRules.normal;
 
   return {
