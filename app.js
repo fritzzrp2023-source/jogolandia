@@ -751,12 +751,25 @@ function isMyRemoteTurn() {
   return (active.userIds || []).map(Number).includes(Number(currentUser?.id));
 }
 
-function showWaitingMatch(match) {
-  stopRemotePolling();
-  activeRemoteMatchId = match.id;
+function openHangmanMatchView() {
+  Object.entries(views).forEach(([key, view]) => {
+    view.hidden = key !== "games";
+    view.classList.toggle("active", key === "games");
+  });
+  userMenu.hidden = true;
+  userMenuButton.setAttribute("aria-expanded", "false");
+  dashboardEyebrow.textContent = "Forca";
+  dashboardTitle.textContent = "Sala de jogo";
   document.querySelector("#gamesGrid").hidden = true;
   document.querySelector("#hangmanSetup").hidden = true;
   document.querySelector("#hangmanPanel").hidden = false;
+  window.scrollTo({ top: 0, behavior: "smooth" });
+}
+
+function showWaitingMatch(match) {
+  stopRemotePolling();
+  activeRemoteMatchId = match.id;
+  openHangmanMatchView();
   document.querySelector("#wordGuess").value = "";
   document.querySelector("#turnLabel").textContent = "Aguardando inicio da partida";
   document.querySelector("#wordSlots").innerHTML = "<span>...</span>";
@@ -813,9 +826,7 @@ function showRemoteMatch(match) {
     locked: Boolean(state.locked || match.status === "finished"),
     players: state.players || [],
   };
-  document.querySelector("#gamesGrid").hidden = true;
-  document.querySelector("#hangmanSetup").hidden = true;
-  document.querySelector("#hangmanPanel").hidden = false;
+  openHangmanMatchView();
   document.querySelector("#newHangmanRound").disabled = true;
   setMessage(document.querySelector("#hangmanMessage"), state.message || "Partida carregada.", state.messageType || "success");
   renderHangman();
